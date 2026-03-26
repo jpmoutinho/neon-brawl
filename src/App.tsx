@@ -100,10 +100,9 @@ export default function App() {
 
   const joinGame = () => {
     if (targetPeerId && mpManagerRef.current) {
-      mpManagerRef.current.init();
-      setTimeout(() => {
+      mpManagerRef.current.init(undefined, () => {
         mpManagerRef.current?.connect(targetPeerId);
-      }, 1000);
+      });
     }
   };
 

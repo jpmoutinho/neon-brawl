@@ -32,12 +32,13 @@ export class MultiplayerManager {
 
   constructor() {}
 
-  init(id?: string) {
+  init(id?: string, onOpen?: (id: string) => void) {
     this.peer = id ? new Peer(id) : new Peer();
-    
+
     this.peer.on('open', (id) => {
       this.peerId = id;
       console.log('My peer ID is: ' + id);
+      if (onOpen) onOpen(id);
     });
 
     this.peer.on('connection', (conn) => {
