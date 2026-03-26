@@ -1,15 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './game/Engine';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, NEON_PALETTE } from './game/constants';
-import { Keyboard, Settings2, Palette } from 'lucide-react';
+import { Keyboard, Settings2, Palette, Users, Link as LinkIcon, Copy, Check } from 'lucide-react';
+import { MultiplayerManager, GameState, PlayerInput } from './game/MultiplayerManager';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const mpManagerRef = useRef<MultiplayerManager | null>(null);
   const [kills, setKills] = useState({ p1: 0, p2: 0 });
   const [gameStarted, setGameStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
+
+  // Multiplayer State
+  const [multiplayerMode, setMultiplayerMode] = useState<'none' | 'host' | 'join'>('none');
+  const [peerId, setPeerId] = useState('');
+  const [targetPeerId, setTargetPeerId] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   // Configuration State
   const [p1Color, setP1Color] = useState(COLORS.PLAYER1);
@@ -31,14 +40,87 @@ export default function App() {
       };
       engineRef.current = engine;
     }
+
+    if (!mpManagerRef.current) {
+      const mp = new MultiplayerManager();
+      mp.onConnected = () => {
+        setIsConnected(true);
+        startGame(true);
+      };
+      mp.onData = (data) => {
+        if (engineRef.current) {
+          if (mp.isHost) {
+            engineRef.current.remoteInput = data as PlayerInput;
+          } else {
+            engineRef.current.applyState(data as GameState);
+          }
+        }
+      };
+      mp.onDisconnected = () => {
+        setIsConnected(false);
+        quitGame();
+      };
+      mpManagerRef.current = mp;
+    }
+
+    return () => {
+      if (mpManagerRef.current) {
+        mpManagerRef.current.disconnect();
+      }
+    };
   }, []);
 
-  const startGame = () => {
+  useEffect(() => {
+    if (engineRef.current && mpManagerRef.current) {
+      engineRef.current.onStateUpdate = (state) => {
+        if (mpManagerRef.current?.isHost) {
+          mpManagerRef.current.send(state);
+        }
+      };
+      engineRef.current.onInputUpdate = (input) => {
+        if (!mpManagerRef.current?.isHost) {
+          mpManagerRef.current.send(input);
+        }
+      };
+    }
+  }, [gameStarted]);
+
+  const hostGame = () => {
+    setMultiplayerMode('host');
+    if (mpManagerRef.current) {
+      mpManagerRef.current.init();
+      const checkId = setInterval(() => {
+        if (mpManagerRef.current?.peerId) {
+          setPeerId(mpManagerRef.current.peerId);
+          clearInterval(checkId);
+        }
+      }, 500);
+    }
+  };
+
+  const joinGame = () => {
+    if (targetPeerId && mpManagerRef.current) {
+      mpManagerRef.current.init();
+      setTimeout(() => {
+        mpManagerRef.current?.connect(targetPeerId);
+      }, 1000);
+    }
+  };
+
+  const copyId = () => {
+    navigator.clipboard.writeText(peerId);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const startGame = (isMp = false) => {
     setKills({ p1: 0, p2: 0 });
     setGameStarted(true);
     setIsPaused(false);
     setWinner(null);
     if (engineRef.current) {
+      engineRef.current.isMultiplayer = isMp;
+      engineRef.current.isHost = isMp && mpManagerRef.current?.isHost || false;
       engineRef.current.start({ p1Color, p2Color, speedMultiplier, envColor });
     }
   };
@@ -56,6 +138,11 @@ export default function App() {
     if (engineRef.current) {
       engineRef.current.stop();
     }
+    if (mpManagerRef.current) {
+      mpManagerRef.current.disconnect();
+      setMultiplayerMode('none');
+      setIsConnected(false);
+    }
   };
 
   return (
@@ -68,9 +155,6 @@ export default function App() {
           <h1 className="text-6xl font-black tracking-tighter italic uppercase animate-pulse" style={{ color: envColor, filter: `drop-shadow(0 0 15px ${envColor})` }}>
             NEON BRAWL
           </h1>
-          <p className="text-[#00FFFF] mt-2 uppercase tracking-[0.3em] text-xs font-bold drop-shadow-[0_0_5px_rgba(0,255,255,0.5)]">
-            LASER DAGGER PROTOCOL 84
-          </p>
           {/* Decorative scanline on title */}
           <div className="absolute top-1/2 left-0 w-full h-[2px] bg-white/20 blur-[1px] -translate-y-1/2 pointer-events-none animate-pulse"></div>
         </div>
@@ -105,7 +189,7 @@ export default function App() {
             <p className="text-white/60 uppercase tracking-[0.3em] text-sm font-bold mb-12">Final Score: {kills.p1} - {kills.p2}</p>
             <div className="flex flex-col gap-4 w-64">
               <button
-                onClick={startGame}
+                onClick={() => startGame(multiplayerMode !== 'none')}
                 className="px-8 py-4 bg-white text-black font-black text-xl uppercase italic skew-x-[-10deg] hover:bg-[#FF00FF] hover:text-white transition-all duration-200 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
                 style={{ '--hover-bg': envColor } as React.CSSProperties}
                 onMouseEnter={(e) => {
@@ -153,21 +237,88 @@ export default function App() {
 
         {!gameStarted && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 rounded-lg backdrop-blur-none border-0 overflow-y-auto p-8">
-            <div className="mb-12 w-full max-w-md">
+            <div className="mb-12 w-full max-w-md flex flex-col gap-8">
               {/* Instructions */}
               <div className="text-center">
                 <div className="w-12 h-12 rounded-full mx-auto mb-4 border-4 border-white shadow-[0_0_20px_rgba(255,255,255,0.5)]" style={{ backgroundColor: p1Color }} />
-                <h3 className="font-bold text-lg mb-2 uppercase italic tracking-tighter" style={{ color: p1Color }}>P1 Controls</h3>
+                <h3 className="font-bold text-lg mb-2 uppercase italic tracking-tighter" style={{ color: p1Color }}>Controls</h3>
                 <div className="flex flex-col gap-1 text-[9px] text-gray-400 font-mono uppercase tracking-wider">
-                  <span className="bg-black/60 px-2 py-1 rounded">WASD to Move / SHIFT to Dash</span>
+                  <span className="bg-black/60 px-2 py-1 rounded">WASD to Move</span>
+                  <span className="bg-black/60 px-2 py-1 rounded">SHIFT to Dash</span>
                   <span className="bg-black/60 px-2 py-1 rounded">CLICK to Aim / RELEASE to Throw</span>
                   <span className="bg-black/60 px-2 py-1 rounded">SPACE to Slash / RECALL</span>
                 </div>
               </div>
+
+              {/* Multiplayer Section */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-6 flex flex-col gap-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-4 h-4 text-[#00FFFF]" />
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-[#00FFFF]">Multiplayer Protocol</h4>
+                </div>
+
+                {multiplayerMode === 'none' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={hostGame}
+                      className="flex flex-col items-center gap-2 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-all group"
+                    >
+                      <LinkIcon className="w-6 h-6 group-hover:text-[#FF00FF]" />
+                      <span className="text-[10px] font-bold uppercase">Host Game</span>
+                    </button>
+                    <button
+                      onClick={() => setMultiplayerMode('join')}
+                      className="flex flex-col items-center gap-2 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-all group"
+                    >
+                      <Users className="w-6 h-6 group-hover:text-[#00FFFF]" />
+                      <span className="text-[10px] font-bold uppercase">Join Game</span>
+                    </button>
+                  </div>
+                ) : multiplayerMode === 'host' ? (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-[10px] text-gray-400 uppercase font-bold">Share this ID with your opponent:</p>
+                    <div className="flex gap-2">
+                      <div className="flex-1 bg-black/40 border border-white/20 rounded px-3 py-2 font-mono text-xs text-[#00FFFF] truncate">
+                        {peerId || 'Generating ID...'}
+                      </div>
+                      <button
+                        onClick={copyId}
+                        disabled={!peerId}
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded transition-all disabled:opacity-50"
+                      >
+                        {isCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-gray-500 italic">Waiting for connection...</p>
+                    <button onClick={() => setMultiplayerMode('none')} className="text-[9px] uppercase font-bold text-red-400 hover:underline self-start">Cancel</button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-[10px] text-gray-400 uppercase font-bold">Enter Host ID:</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={targetPeerId}
+                        onChange={(e) => setTargetPeerId(e.target.value)}
+                        placeholder="Paste ID here..."
+                        className="flex-1 bg-black/40 border border-white/20 rounded px-3 py-2 font-mono text-xs text-white focus:outline-none focus:border-[#00FFFF]"
+                      />
+                      <button
+                        onClick={joinGame}
+                        disabled={!targetPeerId}
+                        className="px-4 py-2 bg-[#00FFFF] text-black font-bold text-xs uppercase rounded hover:bg-white transition-all disabled:opacity-50"
+                      >
+                        Connect
+                      </button>
+                    </div>
+                    <button onClick={() => setMultiplayerMode('none')} className="text-[9px] uppercase font-bold text-red-400 hover:underline self-start">Cancel</button>
+                  </div>
+                )}
+              </div>
             </div>
             
             <button
-              onClick={startGame}
+              onClick={() => startGame(false)}
               className="group relative px-12 py-4 bg-white text-black font-black text-2xl uppercase italic skew-x-[-10deg] transition-all duration-200 active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
               style={{ 
                 '--hover-bg': envColor 
@@ -181,7 +332,7 @@ export default function App() {
                 e.currentTarget.style.color = 'black';
               }}
             >
-              <span className="inline-block skew-x-[10deg]">Start Brawl</span>
+              <span className="inline-block skew-x-[10deg]">Start Practice</span>
             </button>
           </div>
         )}

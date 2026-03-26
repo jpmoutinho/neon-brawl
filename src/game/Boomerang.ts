@@ -5,12 +5,13 @@ export class Boomerang {
   pos: Point;
   vel: Vector;
   radius: number = BOOMERANG_RADIUS;
-  rotation: number = 0;
   isActive: boolean = true;
   isInitialOverlap: boolean = true;
   trail: Point[] = [];
   maxTrailLength: number = 8;
   color: string;
+  isReturning: boolean = false;
+  angle: number = 0;
 
   constructor(ownerId: string, x: number, y: number, vx: number, vy: number, color: string = COLORS.DAGGER) {
     this.ownerId = ownerId;
@@ -31,7 +32,7 @@ export class Boomerang {
     const speed = Math.sqrt(this.vel.x * this.vel.x + this.vel.y * this.vel.y);
     
     // Rotation slows down linearly with speed
-    this.rotation += BOOMERANG_ROTATION_SPEED * (speed / 10);
+    this.angle += BOOMERANG_ROTATION_SPEED * (speed / 10);
 
     // Friction force: stronger deceleration to feel less floaty
     const frictionMultiplier = 0.985;
@@ -78,7 +79,7 @@ export class Boomerang {
     const humX = (Math.random() - 0.5) * 1.5;
     const humY = (Math.random() - 0.5) * 1.5;
     ctx.translate(this.pos.x + humX, this.pos.y + humY);
-    ctx.rotate(this.rotation);
+    ctx.rotate(this.angle);
 
     // Laser Dagger Shape (Sharp glowing triangle)
     const bladeLength = 25;

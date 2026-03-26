@@ -2,6 +2,7 @@ import { Player } from './Player';
 import { Boomerang } from './Boomerang';
 import { Particle } from './Particle';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, SLASH_RANGE, SLASH_ANGLE, Point, Rect } from './constants';
+import { GameState, PlayerInput } from './MultiplayerManager';
 
 export class GameEngine {
   canvas: HTMLCanvasElement;
@@ -22,6 +23,16 @@ export class GameEngine {
   // Aiming state
   isAiming: boolean = false;
   mousePos: Point = { x: 0, y: 0 };
+
+  // Multiplayer state
+  isMultiplayer: boolean = false;
+  isHost: boolean = false;
+  remoteInput: PlayerInput = { up: false, down: false, left: false, right: false, slash: false, dash: false, mousePos: { x: 0, y: 0 }, isThrowing: false };
+  onStateUpdate?: (state: GameState) => void;
+  onInputUpdate?: (input: PlayerInput) => void;
+
+  // Track remote throw
+  private p2WasThrowing: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -90,6 +101,7 @@ export class GameEngine {
     const p2Color = config?.p2Color || COLORS.PLAYER2;
     const speedMultiplier = config?.speedMultiplier || 1.0;
     this.envColor = config?.envColor || COLORS.ENV;
+    this.p2WasThrowing = false;
 
     if (this.isRunning) {
       this.players = [
@@ -232,6 +244,25 @@ export class GameEngine {
   musicGain: GainNode | null = null;
 
   update() {
+    if (this.isMultiplayer && !this.isHost) {
+      // Client only sends inputs
+      if (this.onInputUpdate) {
+        const p2 = this.players[1];
+        const input: PlayerInput = {
+          up: this.keys.has('KeyW'),
+          down: this.keys.has('KeyS'),
+          left: this.keys.has('KeyA'),
+          right: this.keys.has('KeyD'),
+          slash: this.keys.has('Space') && p2.hasBoomerang,
+          dash: this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'),
+          mousePos: { ...this.mousePos },
+          isThrowing: this.isAiming,
+        };
+        this.onInputUpdate(input);
+      }
+      return;
+    }
+
     if (this.screenShake > 0) {
       this.screenShake *= 0.9;
       if (this.screenShake < 0.1) this.screenShake = 0;
@@ -259,13 +290,31 @@ export class GameEngine {
       }
     }
 
-    // Player 2 - AI Bot
+    // Player 2 - AI Bot or Remote Player
     const p2 = this.players[1];
     if (p2.isAlive) {
       const wasSlashing = p2.isSlashing;
       const wasDashing = p2.isDashing;
-      const aiInput = this.getAIInput(p2, p1);
-      p2.update(aiInput);
+      
+      if (this.isMultiplayer && this.isHost) {
+        // Handle remote throw for P2
+        if (this.p2WasThrowing && !this.remoteInput.isThrowing && p2.hasBoomerang) {
+          const dx = this.remoteInput.mousePos.x - p2.pos.x;
+          const dy = this.remoteInput.mousePos.y - p2.pos.y;
+          const mag = Math.sqrt(dx * dx + dy * dy);
+          if (mag > 5) {
+            this.throwBoomerang(p2, dx / mag, dy / mag, 1.0);
+          }
+        }
+        this.p2WasThrowing = this.remoteInput.isThrowing;
+
+        // Use remote input for P2
+        p2.update(this.remoteInput);
+      } else {
+        // AI Bot
+        const aiInput = this.getAIInput(p2, p1);
+        p2.update(aiInput);
+      }
 
       if (!wasSlashing && p2.isSlashing) {
         this.playSound(1200, 'sine', 0.2, 0.1, true); // Consistent with throw sound
@@ -274,8 +323,8 @@ export class GameEngine {
         this.playSound(880, 'sine', 0.1, 0.05, true); // Dash sound
       }
 
-      // AI Throw logic
-      if (p2.hasBoomerang && !p2.isDashing) {
+      // AI Throw logic (only if not multiplayer)
+      if (!this.isMultiplayer && p2.hasBoomerang && !p2.isDashing) {
         const dx = p1.pos.x - p2.pos.x;
         const dy = p1.pos.y - p2.pos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -610,6 +659,95 @@ export class GameEngine {
         }
       });
     });
+
+    // Broadcast state if host
+    if (this.isMultiplayer && this.isHost && this.onStateUpdate) {
+      this.onStateUpdate(this.getState());
+    }
+  }
+
+  getState(): GameState {
+    return {
+      p1: { 
+        pos: { ...this.players[0].pos }, 
+        vel: { ...this.players[0].vel }, 
+        facing: { ...this.players[0].facing }, 
+        isSlashing: this.players[0].isSlashing, 
+        isDashing: this.players[0].isDashing, 
+        isAlive: this.players[0].isAlive, 
+        kills: this.players[0].kills, 
+        hasBoomerang: this.players[0].hasBoomerang 
+      },
+      p2: { 
+        pos: { ...this.players[1].pos }, 
+        vel: { ...this.players[1].vel }, 
+        facing: { ...this.players[1].facing }, 
+        isSlashing: this.players[1].isSlashing, 
+        isDashing: this.players[1].isDashing, 
+        isAlive: this.players[1].isAlive, 
+        kills: this.players[1].kills, 
+        hasBoomerang: this.players[1].hasBoomerang 
+      },
+      boomerangs: this.boomerangs.map(b => ({
+        pos: { ...b.pos },
+        vel: { ...b.vel },
+        ownerId: b.ownerId,
+        isReturning: b.isReturning,
+        angle: b.angle
+      })),
+      particles: this.particles.map(p => ({
+        pos: { ...p.pos },
+        color: p.color,
+        life: p.life
+      })),
+      lightBursts: this.lightBursts.map(lb => ({ ...lb })),
+      envColor: this.envColor
+    };
+  }
+
+  applyState(state: GameState) {
+    if (!this.players[0] || !this.players[1]) return;
+    
+    this.players[0].pos = { ...state.p1.pos };
+    this.players[0].vel = { ...state.p1.vel };
+    this.players[0].facing = { ...state.p1.facing };
+    this.players[0].isSlashing = state.p1.isSlashing;
+    this.players[0].isDashing = state.p1.isDashing;
+    this.players[0].isAlive = state.p1.isAlive;
+    this.players[0].kills = state.p1.kills;
+    this.players[0].hasBoomerang = state.p1.hasBoomerang;
+
+    this.players[1].pos = { ...state.p2.pos };
+    this.players[1].vel = { ...state.p2.vel };
+    this.players[1].facing = { ...state.p2.facing };
+    this.players[1].isSlashing = state.p2.isSlashing;
+    this.players[1].isDashing = state.p2.isDashing;
+    this.players[1].isAlive = state.p2.isAlive;
+    this.players[1].kills = state.p2.kills;
+    this.players[1].hasBoomerang = state.p2.hasBoomerang;
+
+    // Sync boomerangs
+    this.boomerangs = state.boomerangs.map(bData => {
+      const b = new Boomerang(bData.ownerId, bData.pos.x, bData.pos.y, 0, 0);
+      b.vel = { ...bData.vel };
+      b.isReturning = bData.isReturning;
+      b.angle = bData.angle;
+      return b;
+    });
+
+    // Sync particles (simplified)
+    this.particles = state.particles.map(pData => {
+      const p = new Particle(pData.pos.x, pData.pos.y, pData.color);
+      p.life = pData.life;
+      return p;
+    });
+
+    this.lightBursts = state.lightBursts.map(lb => ({ ...lb }));
+    this.envColor = state.envColor;
+
+    if (this.onKillsUpdate) {
+      this.onKillsUpdate(this.players[0].kills, this.players[1].kills);
+    }
   }
 
   getAIInput(ai: Player, target: Player) {
