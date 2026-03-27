@@ -135,22 +135,15 @@ export class MultiplayerManager {
 
   private setupConnection(conn: DataConnection) {
     this.conn = conn;
-    console.log('[Multiplayer] Setting up data channel with:', conn.peer);
-    
-    // Monitor ICE state early
-    const pc = (conn as any).peerConnection as RTCPeerConnection;
-    if (pc) {
-      pc.oniceconnectionstatechange = () => {
-        const state = pc.iceConnectionState;
-        console.log('[Multiplayer] ICE State changed to:', state, 'for:', conn.peer);
-        this.onIceStateChange(state);
-      };
 
-      // Log every candidate to see if TURN candidates appear
+    const attachMonitoring = (pc: RTCPeerConnection) => {
+      pc.oniceconnectionstatechange = () => {
+        console.log('[ICE state]', pc.iceConnectionState);
+        this.onIceStateChange(pc.iceConnectionState);
+      };
       pc.onicegatheringstatechange = () => {
         console.log('[ICE gathering]', pc.iceGatheringState);
       };
-
       pc.onicecandidate = (e) => {
         if (e.candidate) {
           console.log('[ICE candidate]', e.candidate.type, e.candidate.candidate);
@@ -158,13 +151,17 @@ export class MultiplayerManager {
           console.log('[ICE candidate] gathering complete');
         }
       };
-    }
-    
+    };
 
+    // PeerJS may not have created peerConnection yet — wait for open
     conn.on('open', () => {
       console.log('[Multiplayer] DATA CHANNEL OPENED with:', conn.peer);
       
-      // Heartbeat to keep connection alive
+      const pc = (conn as any).peerConnection as RTCPeerConnection;
+      if (pc) {
+        console.log('[ICE state at open]', pc.iceConnectionState);
+      }
+
       const heartbeat = setInterval(() => {
         if (this.conn && this.conn.open) {
           this.conn.send({ type: 'HEARTBEAT' });
@@ -176,13 +173,31 @@ export class MultiplayerManager {
       this.onConnected();
     });
 
+    // Try attaching immediately AND after a tick
+    const pcImmediate = (conn as any).peerConnection as RTCPeerConnection;
+    if (pcImmediate) {
+      console.log('[Multiplayer] peerConnection exists immediately');
+      attachMonitoring(pcImmediate);
+    } else {
+      console.log('[Multiplayer] peerConnection not ready yet, waiting...');
+      setTimeout(() => {
+        const pcDelayed = (conn as any).peerConnection as RTCPeerConnection;
+        if (pcDelayed) {
+          console.log('[Multiplayer] peerConnection found after delay');
+          attachMonitoring(pcDelayed);
+        } else {
+          console.log('[Multiplayer] peerConnection STILL null — PeerJS version issue');
+        }
+      }, 0);
+    }
+
     conn.on('data', (data: any) => {
       if (data && data.type === 'HEARTBEAT') return;
       this.onData(data);
     });
 
     conn.on('close', () => {
-      console.log('[Multiplayer] Connection closed by peer');
+      console.log('[Multiplayer] Connection closed');
       this.onDisconnected();
     });
 
