@@ -5,7 +5,7 @@ import { Keyboard, Settings2, Palette, Users, Link as LinkIcon, Copy, Check } fr
 import { MultiplayerManager, GameState, PlayerInput } from './game/MultiplayerManager';
 
 export default function App() {
-  const VERSION = '1.0.6';
+  const VERSION = '1.0.7';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mpManagerRef = useRef<MultiplayerManager | null>(null);
@@ -101,14 +101,13 @@ export default function App() {
     }
   };
 
+  useEffect(() => { isConnectedRef.current = isConnected; }, [isConnected]);
+
   const joinGame = () => {
     console.log('[App] Join Game clicked with ID:', targetPeerId);
     if (targetPeerId && mpManagerRef.current) {
       setIsConnecting(true);
       mpManagerRef.current.connect(targetPeerId);
-
-      // Keep it in sync
-      useEffect(() => { isConnectedRef.current = isConnected; }, [isConnected]);
 
       // Then in the timeout:
       setTimeout(() => {
