@@ -32,35 +32,43 @@ export class MultiplayerManager {
   public onConnected: () => void = () => {};
   public onData: (data: any) => void = () => {};
   public onDisconnected: () => void = () => {};
+  public onError: (error: string) => void = () => {};
 
   constructor() {}
 
   init() {
     if (this.peer) return;
 
+    console.log('[Multiplayer] Initializing PeerJS...');
+
     // Production Config for GitHub Pages & Secure Environments
     this.peer = new Peer({
+      host: '0.peerjs.com',
+      port: 443,
+      secure: true,
+      path: '/',
       config: { 
         'iceServers': [
           { 'urls': 'stun:stun.l.google.com:19302' },
           { 'urls': 'stun:stun1.l.google.com:19302' },
-          { 'urls': 'stun:stun2.l.google.com:19302' }
+          { 'urls': 'stun:stun2.l.google.com:19302' },
+          { 'urls': 'stun:stun3.l.google.com:19302' },
+          { 'urls': 'stun:stun4.l.google.com:19302' }
         ] 
       },
-      debug: 1,
-      secure: true,
-      port: 443
+      debug: 3 // Full logging for debugging
     });
     
     this.peer.on('open', (id) => {
       this.peerId = id;
-      console.log('My peer ID is: ' + id);
+      console.log('[Multiplayer] Peer ID assigned:', id);
       this.onIdReady(id);
     });
 
     this.peer.on('connection', (conn) => {
+      console.log('[Multiplayer] Incoming connection from:', conn.peer);
       if (this.conn) {
-        console.log('Rejecting incoming connection: already connected.');
+        console.log('[Multiplayer] Rejecting: already connected.');
         conn.on('open', () => {
           conn.send({ type: 'ERROR', message: 'Room full' });
           setTimeout(() => conn.close(), 500);
@@ -72,29 +80,39 @@ export class MultiplayerManager {
     });
 
     this.peer.on('error', (err) => {
-      console.error('PeerJS error:', err.type, err);
+      console.error('[Multiplayer] PeerJS error:', err.type, err);
+      let message = 'Connection error occurred.';
+      
       if (err.type === 'peer-unavailable') {
-        alert('Opponent not found. Check the ID and try again.');
+        message = 'Opponent not found. Make sure the Host ID is correct and they are still online.';
+      } else if (err.type === 'network') {
+        message = 'Network error. Please check your internet connection.';
+      } else if (err.type === 'server-error') {
+        message = 'Could not reach the signaling server. Try again in a moment.';
       }
+      
+      this.onError(message);
     });
   }
 
   connect(targetId: string) {
+    console.log('[Multiplayer] Attempting to connect to:', targetId);
+    
     if (!this.peer) {
       this.init();
     }
     
     const attemptConnection = () => {
       this.isHost = false;
-      const conn = this.peer!.connect(targetId, {
-        reliable: true
-      });
+      // Use standard connection options
+      const conn = this.peer!.connect(targetId);
       this.setupConnection(conn);
     };
 
     if (this.peerId) {
       attemptConnection();
     } else {
+      console.log('[Multiplayer] Waiting for Peer ID before connecting...');
       this.peer!.once('open', () => attemptConnection());
     }
   }

@@ -66,6 +66,10 @@ export default function App() {
         setIsConnecting(false);
         quitGame();
       };
+      mp.onError = (message) => {
+        setIsConnecting(false);
+        alert(message);
+      };
       mpManagerRef.current = mp;
     }
 
@@ -102,6 +106,13 @@ export default function App() {
     if (targetPeerId && mpManagerRef.current) {
       setIsConnecting(true);
       mpManagerRef.current.connect(targetPeerId);
+      
+      // Connection timeout
+      setTimeout(() => {
+        if (!engineRef.current?.isMultiplayer || !isConnected) {
+          setIsConnecting(false);
+        }
+      }, 10000);
     }
   };
 
