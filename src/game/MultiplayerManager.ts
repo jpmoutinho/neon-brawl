@@ -63,7 +63,7 @@ export class MultiplayerManager {
             credential: 'openrelayproject'
           }
         ],
-        iceTransportPolicy: 'all'
+        iceTransportPolicy: 'relay'
       }
     });
     
