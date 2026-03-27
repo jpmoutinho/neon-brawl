@@ -5,7 +5,7 @@ import { Keyboard, Settings2, Palette, Users, Link as LinkIcon, Copy, Check } fr
 import { MultiplayerManager, GameState, PlayerInput } from './game/MultiplayerManager';
 
 export default function App() {
-  const VERSION = '1.0.4';
+  const VERSION = '1.0.5';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mpManagerRef = useRef<MultiplayerManager | null>(null);
@@ -21,6 +21,7 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [iceState, setIceState] = useState<string>('');
 
   // Configuration State
   const [p1Color, setP1Color] = useState(COLORS.PLAYER1);
@@ -52,6 +53,9 @@ export default function App() {
       mp.onIdReady = (id) => {
         console.log('[App] Peer ID ready:', id);
         setPeerId(id);
+      };
+      mp.onIceStateChange = (state) => {
+        setIceState(state);
       };
       mp.onConnected = () => {
         console.log('[App] Multiplayer connected!');
@@ -314,7 +318,9 @@ export default function App() {
                         {isCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
                       </button>
                     </div>
-                    <p className="text-[9px] text-gray-500 italic">Waiting for connection...</p>
+                    <p className="text-[9px] text-gray-500 italic">
+                      {iceState ? `Status: ${iceState}` : 'Waiting for connection...'}
+                    </p>
                     <button onClick={() => setMultiplayerMode('none')} className="text-[9px] uppercase font-bold text-red-400 hover:underline self-start">Cancel</button>
                   </div>
                 ) : (

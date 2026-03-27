@@ -33,6 +33,7 @@ export class MultiplayerManager {
   public onData: (data: any) => void = () => {};
   public onDisconnected: () => void = () => {};
   public onError: (error: string) => void = () => {};
+  public onIceStateChange: (state: string) => void = () => {};
 
   constructor() {}
 
@@ -49,9 +50,11 @@ export class MultiplayerManager {
           { 'urls': 'stun:stun1.l.google.com:19302' },
           { 'urls': 'stun:stun2.l.google.com:19302' },
           { 'urls': 'stun:stun3.l.google.com:19302' },
-          { 'urls': 'stun:stun4.l.google.com:19302' }
+          { 'urls': 'stun:stun4.l.google.com:19302' },
+          { 'urls': 'stun:stun.services.mozilla.com' }
         ],
-        'iceCandidatePoolSize': 10
+        'iceCandidatePoolSize': 10,
+        'iceTransportPolicy': 'all'
       },
       debug: 3
     });
@@ -99,9 +102,9 @@ export class MultiplayerManager {
     
     const attemptConnection = () => {
       this.isHost = false;
-      // Use standard serialization and unreliable mode for better game performance and connection stability
+      // Use reliable mode and JSON serialization for better compatibility
       const conn = this.peer!.connect(targetId, {
-        reliable: false,
+        reliable: true,
         serialization: 'json'
       });
       this.setupConnection(conn);
@@ -123,7 +126,9 @@ export class MultiplayerManager {
     const pc = (conn as any).peerConnection as RTCPeerConnection;
     if (pc) {
       pc.oniceconnectionstatechange = () => {
-        console.log('[Multiplayer] ICE State changed to:', pc.iceConnectionState, 'for:', conn.peer);
+        const state = pc.iceConnectionState;
+        console.log('[Multiplayer] ICE State changed to:', state, 'for:', conn.peer);
+        this.onIceStateChange(state);
       };
     }
     
