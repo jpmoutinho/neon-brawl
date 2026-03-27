@@ -138,8 +138,22 @@ export class MultiplayerManager {
         console.log('[Multiplayer] ICE State changed to:', state, 'for:', conn.peer);
         this.onIceStateChange(state);
       };
+
+      // Log every candidate to see if TURN candidates appear
+      pc.onicegatheringstatechange = () => {
+        console.log('[ICE gathering]', pc.iceGatheringState);
+      };
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          console.log('[ICE candidate]', e.candidate.type, e.candidate.candidate);
+        } else {
+          console.log('[ICE candidate] gathering complete');
+        }
+      };
     }
     
+
     conn.on('open', () => {
       console.log('[Multiplayer] DATA CHANNEL OPENED with:', conn.peer);
       
@@ -178,13 +192,9 @@ export class MultiplayerManager {
   }
 
   disconnect() {
-    if (this.conn) {
-      this.conn.close();
-      this.conn = null;
-    }
-    if (this.peer) {
-      this.peer.destroy();
-      this.peer = null;
-    }
+    if (this.conn) { this.conn.close(); this.conn = null; }
+    if (this.peer) { this.peer.destroy(); this.peer = null; } // null it out
+    this.isHost = false;
+    this.peerId = '';
   }
 }

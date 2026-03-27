@@ -92,21 +92,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (engineRef.current && mpManagerRef.current) {
-      engineRef.current.onStateUpdate = (state) => {
-        if (mpManagerRef.current?.isHost) {
-          mpManagerRef.current.send(state);
-        }
-      };
-      engineRef.current.onInputUpdate = (input) => {
-        if (!mpManagerRef.current?.isHost) {
-          mpManagerRef.current.send(input);
-        }
-      };
-    }
-  }, [gameStarted]);
-
   const hostGame = () => {
     console.log('[App] Host Game clicked');
     setMultiplayerMode('host');
@@ -121,13 +106,17 @@ export default function App() {
       setIsConnecting(true);
       mpManagerRef.current.connect(targetPeerId);
       
-      // Connection timeout
+      const isConnectedRef = useRef(false);
+
+      // Keep it in sync
+      useEffect(() => { isConnectedRef.current = isConnected; }, [isConnected]);
+
+      // Then in the timeout:
       setTimeout(() => {
-        if (!engineRef.current?.isMultiplayer || !isConnected) {
-          console.log('[App] Connection timeout reached (20s)');
+        if (!isConnectedRef.current) {
           setIsConnecting(false);
         }
-      }, 20000);
+      }, 60000);
     } else {
       console.log('[App] Join Game failed: targetPeerId or mpManager missing');
     }
@@ -149,6 +138,15 @@ export default function App() {
       engineRef.current.isMultiplayer = isMp;
       engineRef.current.isHost = isMp && mpManagerRef.current?.isHost || false;
       engineRef.current.start({ p1Color, p2Color, speedMultiplier, envColor });
+    }
+
+    if (engineRef.current && mpManagerRef.current) {
+      engineRef.current.onStateUpdate = (state) => {
+        if (mpManagerRef.current?.isHost) mpManagerRef.current.send(state);
+      };
+      engineRef.current.onInputUpdate = (input) => {
+        if (!mpManagerRef.current?.isHost) mpManagerRef.current?.send(input);
+      };
     }
   };
 
