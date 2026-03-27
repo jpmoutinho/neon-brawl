@@ -26,23 +26,45 @@ export class MultiplayerManager {
   private conn: DataConnection | null = null;
   public peerId: string = '';
   public isHost: boolean = false;
+  
+  // Callbacks
+  public onIdReady: (id: string) => void = () => {};
   public onConnected: () => void = () => {};
   public onData: (data: any) => void = () => {};
   public onDisconnected: () => void = () => {};
 
   constructor() {}
 
-  init(id?: string) {
-    this.peer = id ? new Peer(id) : new Peer();
+  init() {
+    if (this.peer) return;
+
+    // Production Config for GitHub Pages & Secure Environments
+    this.peer = new Peer({
+      config: { 
+        'iceServers': [
+          { 'urls': 'stun:stun.l.google.com:19302' },
+          { 'urls': 'stun:stun1.l.google.com:19302' },
+          { 'urls': 'stun:stun2.l.google.com:19302' }
+        ] 
+      },
+      debug: 1,
+      secure: true,
+      port: 443
+    });
     
     this.peer.on('open', (id) => {
       this.peerId = id;
       console.log('My peer ID is: ' + id);
+      this.onIdReady(id);
     });
 
     this.peer.on('connection', (conn) => {
       if (this.conn) {
-        conn.close();
+        console.log('Rejecting incoming connection: already connected.');
+        conn.on('open', () => {
+          conn.send({ type: 'ERROR', message: 'Room full' });
+          setTimeout(() => conn.close(), 500);
+        });
         return;
       }
       this.isHost = true;
@@ -50,15 +72,31 @@ export class MultiplayerManager {
     });
 
     this.peer.on('error', (err) => {
-      console.error('Peer error:', err);
+      console.error('PeerJS error:', err.type, err);
+      if (err.type === 'peer-unavailable') {
+        alert('Opponent not found. Check the ID and try again.');
+      }
     });
   }
 
   connect(targetId: string) {
-    if (!this.peer) return;
-    this.isHost = false;
-    const conn = this.peer.connect(targetId);
-    this.setupConnection(conn);
+    if (!this.peer) {
+      this.init();
+    }
+    
+    const attemptConnection = () => {
+      this.isHost = false;
+      const conn = this.peer!.connect(targetId, {
+        reliable: true
+      });
+      this.setupConnection(conn);
+    };
+
+    if (this.peerId) {
+      attemptConnection();
+    } else {
+      this.peer!.once('open', () => attemptConnection());
+    }
   }
 
   private setupConnection(conn: DataConnection) {

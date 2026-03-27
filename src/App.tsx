@@ -18,6 +18,7 @@ export default function App() {
   const [peerId, setPeerId] = useState('');
   const [targetPeerId, setTargetPeerId] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
   // Configuration State
@@ -43,8 +44,12 @@ export default function App() {
 
     if (!mpManagerRef.current) {
       const mp = new MultiplayerManager();
+      mp.onIdReady = (id) => {
+        setPeerId(id);
+      };
       mp.onConnected = () => {
         setIsConnected(true);
+        setIsConnecting(false);
         startGame(true);
       };
       mp.onData = (data) => {
@@ -58,6 +63,7 @@ export default function App() {
       };
       mp.onDisconnected = () => {
         setIsConnected(false);
+        setIsConnecting(false);
         quitGame();
       };
       mpManagerRef.current = mp;
@@ -89,21 +95,13 @@ export default function App() {
     setMultiplayerMode('host');
     if (mpManagerRef.current) {
       mpManagerRef.current.init();
-      const checkId = setInterval(() => {
-        if (mpManagerRef.current?.peerId) {
-          setPeerId(mpManagerRef.current.peerId);
-          clearInterval(checkId);
-        }
-      }, 500);
     }
   };
 
   const joinGame = () => {
     if (targetPeerId && mpManagerRef.current) {
-      mpManagerRef.current.init();
-      setTimeout(() => {
-        mpManagerRef.current?.connect(targetPeerId);
-      }, 1000);
+      setIsConnecting(true);
+      mpManagerRef.current.connect(targetPeerId);
     }
   };
 
@@ -134,6 +132,7 @@ export default function App() {
   const quitGame = () => {
     setGameStarted(false);
     setIsPaused(false);
+    setIsConnecting(false);
     setWinner(null);
     if (engineRef.current) {
       engineRef.current.stop();
@@ -305,10 +304,10 @@ export default function App() {
                       />
                       <button
                         onClick={joinGame}
-                        disabled={!targetPeerId}
+                        disabled={!targetPeerId || isConnecting}
                         className="px-4 py-2 bg-[#00FFFF] text-black font-bold text-xs uppercase rounded hover:bg-white transition-all disabled:opacity-50"
                       >
-                        Connect
+                        {isConnecting ? 'Connecting...' : 'Connect'}
                       </button>
                     </div>
                     <button onClick={() => setMultiplayerMode('none')} className="text-[9px] uppercase font-bold text-red-400 hover:underline self-start">Cancel</button>
