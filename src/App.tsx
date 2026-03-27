@@ -5,6 +5,7 @@ import { Keyboard, Settings2, Palette, Users, Link as LinkIcon, Copy, Check } fr
 import { MultiplayerManager, GameState, PlayerInput } from './game/MultiplayerManager';
 
 export default function App() {
+  const VERSION = '1.0.4';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mpManagerRef = useRef<MultiplayerManager | null>(null);
@@ -372,6 +373,9 @@ export default function App() {
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-[#39FF14] rounded-full animate-pulse shadow-[0_0_5px_#39FF14]" />
           <span>System Online</span>
+        </div>
+        <div className="flex items-center gap-2 opacity-50">
+          <span>v{VERSION}</span>
         </div>
       </div>
     </div>

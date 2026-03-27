@@ -50,7 +50,8 @@ export class MultiplayerManager {
           { 'urls': 'stun:stun2.l.google.com:19302' },
           { 'urls': 'stun:stun3.l.google.com:19302' },
           { 'urls': 'stun:stun4.l.google.com:19302' }
-        ] 
+        ],
+        'iceCandidatePoolSize': 10
       },
       debug: 3
     });
@@ -98,9 +99,10 @@ export class MultiplayerManager {
     
     const attemptConnection = () => {
       this.isHost = false;
-      // Force reliable: true to ensure the data channel opens correctly
+      // Use standard serialization and unreliable mode for better game performance and connection stability
       const conn = this.peer!.connect(targetId, {
-        reliable: true
+        reliable: false,
+        serialization: 'json'
       });
       this.setupConnection(conn);
     };
@@ -117,12 +119,31 @@ export class MultiplayerManager {
     this.conn = conn;
     console.log('[Multiplayer] Setting up data channel with:', conn.peer);
     
+    // Monitor ICE state early
+    const pc = (conn as any).peerConnection as RTCPeerConnection;
+    if (pc) {
+      pc.oniceconnectionstatechange = () => {
+        console.log('[Multiplayer] ICE State changed to:', pc.iceConnectionState, 'for:', conn.peer);
+      };
+    }
+    
     conn.on('open', () => {
       console.log('[Multiplayer] DATA CHANNEL OPENED with:', conn.peer);
+      
+      // Heartbeat to keep connection alive
+      const heartbeat = setInterval(() => {
+        if (this.conn && this.conn.open) {
+          this.conn.send({ type: 'HEARTBEAT' });
+        } else {
+          clearInterval(heartbeat);
+        }
+      }, 2000);
+
       this.onConnected();
     });
 
-    conn.on('data', (data) => {
+    conn.on('data', (data: any) => {
+      if (data && data.type === 'HEARTBEAT') return;
       this.onData(data);
     });
 
