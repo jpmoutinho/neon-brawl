@@ -28,6 +28,10 @@ export default function App() {
   const [speedMultiplier, setSpeedMultiplier] = useState(2.0);
 
   useEffect(() => {
+    console.log('[App] Multiplayer mode changed to:', multiplayerMode);
+  }, [multiplayerMode]);
+
+  useEffect(() => {
     if (canvasRef.current && !engineRef.current) {
       const engine = new GameEngine(canvasRef.current);
       engine.onKillsUpdate = (p1, p2) => {
@@ -45,9 +49,11 @@ export default function App() {
     if (!mpManagerRef.current) {
       const mp = new MultiplayerManager();
       mp.onIdReady = (id) => {
+        console.log('[App] Peer ID ready:', id);
         setPeerId(id);
       };
       mp.onConnected = () => {
+        console.log('[App] Multiplayer connected!');
         setIsConnected(true);
         setIsConnecting(false);
         startGame(true);
@@ -62,6 +68,7 @@ export default function App() {
         }
       };
       mp.onDisconnected = () => {
+        console.log('[App] Multiplayer disconnected');
         setIsConnected(false);
         setIsConnecting(false);
         quitGame();
@@ -96,6 +103,7 @@ export default function App() {
   }, [gameStarted]);
 
   const hostGame = () => {
+    console.log('[App] Host Game clicked');
     setMultiplayerMode('host');
     if (mpManagerRef.current) {
       mpManagerRef.current.init();
@@ -103,6 +111,7 @@ export default function App() {
   };
 
   const joinGame = () => {
+    console.log('[App] Join Game clicked with ID:', targetPeerId);
     if (targetPeerId && mpManagerRef.current) {
       setIsConnecting(true);
       mpManagerRef.current.connect(targetPeerId);
@@ -110,9 +119,12 @@ export default function App() {
       // Connection timeout
       setTimeout(() => {
         if (!engineRef.current?.isMultiplayer || !isConnected) {
+          console.log('[App] Connection timeout reached');
           setIsConnecting(false);
         }
       }, 10000);
+    } else {
+      console.log('[App] Join Game failed: targetPeerId or mpManager missing');
     }
   };
 
@@ -123,6 +135,7 @@ export default function App() {
   };
 
   const startGame = (isMp = false) => {
+    console.log('[App] Starting game. Multiplayer:', isMp);
     setKills({ p1: 0, p2: 0 });
     setGameStarted(true);
     setIsPaused(false);
@@ -141,6 +154,7 @@ export default function App() {
   };
 
   const quitGame = () => {
+    console.log('[App] Quitting game');
     setGameStarted(false);
     setIsPaused(false);
     setIsConnecting(false);
@@ -307,6 +321,8 @@ export default function App() {
                     <p className="text-[10px] text-gray-400 uppercase font-bold">Enter Host ID:</p>
                     <div className="flex gap-2">
                       <input
+                        id="host-id-input"
+                        name="host-id"
                         type="text"
                         value={targetPeerId}
                         onChange={(e) => setTargetPeerId(e.target.value)}

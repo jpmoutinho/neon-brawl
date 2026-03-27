@@ -97,6 +97,7 @@ export class GameEngine {
   }
 
   init(config?: { p1Color?: string; p2Color?: string; speedMultiplier?: number; envColor?: string }) {
+    console.log('[Engine] Initializing. Multiplayer:', this.isMultiplayer, 'Host:', this.isHost);
     const p1Color = config?.p1Color || COLORS.PLAYER1;
     const p2Color = config?.p2Color || COLORS.PLAYER2;
     const speedMultiplier = config?.speedMultiplier || 1.0;
@@ -201,6 +202,7 @@ export class GameEngine {
   }
 
   start(config?: { p1Color?: string; p2Color?: string; speedMultiplier?: number; envColor?: string }) {
+    console.log('[Engine] Starting. Multiplayer:', this.isMultiplayer, 'Host:', this.isHost);
     if (!this.isRunning) {
       this.isRunning = true;
       this.init(config);

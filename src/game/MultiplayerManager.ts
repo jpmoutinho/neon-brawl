@@ -119,13 +119,19 @@ export class MultiplayerManager {
 
   private setupConnection(conn: DataConnection) {
     this.conn = conn;
+    console.log('[Multiplayer] Setting up connection with:', conn.peer);
     
     conn.on('open', () => {
-      console.log('Connected to: ' + conn.peer);
+      console.log('[Multiplayer] Connection opened with:', conn.peer);
       this.onConnected();
     });
 
+    let firstData = true;
     conn.on('data', (data) => {
+      if (firstData) {
+        console.log('[Multiplayer] First data received from:', conn.peer);
+        firstData = false;
+      }
       this.onData(data);
     });
 
