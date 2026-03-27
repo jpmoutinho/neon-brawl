@@ -39,14 +39,10 @@ export class MultiplayerManager {
   init() {
     if (this.peer) return;
 
-    console.log('[Multiplayer] Initializing PeerJS...');
+    console.log('[Multiplayer] Initializing PeerJS with cloud defaults...');
 
-    // Production Config for GitHub Pages & Secure Environments
+    // Let PeerJS handle the host/port/path defaults for its cloud service
     this.peer = new Peer({
-      host: '0.peerjs.com',
-      port: 443,
-      secure: true,
-      path: '/',
       config: { 
         'iceServers': [
           { 'urls': 'stun:stun.l.google.com:19302' },
@@ -56,7 +52,7 @@ export class MultiplayerManager {
           { 'urls': 'stun:stun4.l.google.com:19302' }
         ] 
       },
-      debug: 3 // Full logging for debugging
+      debug: 3
     });
     
     this.peer.on('open', (id) => {
@@ -66,7 +62,7 @@ export class MultiplayerManager {
     });
 
     this.peer.on('connection', (conn) => {
-      console.log('[Multiplayer] Incoming connection from:', conn.peer);
+      console.log('[Multiplayer] Incoming connection request from:', conn.peer);
       if (this.conn) {
         console.log('[Multiplayer] Rejecting: already connected.');
         conn.on('open', () => {
@@ -84,11 +80,9 @@ export class MultiplayerManager {
       let message = 'Connection error occurred.';
       
       if (err.type === 'peer-unavailable') {
-        message = 'Opponent not found. Make sure the Host ID is correct and they are still online.';
+        message = 'Opponent not found. Make sure the Host ID is correct.';
       } else if (err.type === 'network') {
-        message = 'Network error. Please check your internet connection.';
-      } else if (err.type === 'server-error') {
-        message = 'Could not reach the signaling server. Try again in a moment.';
+        message = 'Network error. Please check your connection.';
       }
       
       this.onError(message);
@@ -104,8 +98,10 @@ export class MultiplayerManager {
     
     const attemptConnection = () => {
       this.isHost = false;
-      // Use standard connection options
-      const conn = this.peer!.connect(targetId);
+      // Force reliable: true to ensure the data channel opens correctly
+      const conn = this.peer!.connect(targetId, {
+        reliable: true
+      });
       this.setupConnection(conn);
     };
 
@@ -119,30 +115,25 @@ export class MultiplayerManager {
 
   private setupConnection(conn: DataConnection) {
     this.conn = conn;
-    console.log('[Multiplayer] Setting up connection with:', conn.peer);
+    console.log('[Multiplayer] Setting up data channel with:', conn.peer);
     
     conn.on('open', () => {
-      console.log('[Multiplayer] Connection opened with:', conn.peer);
+      console.log('[Multiplayer] DATA CHANNEL OPENED with:', conn.peer);
       this.onConnected();
     });
 
-    let firstData = true;
     conn.on('data', (data) => {
-      if (firstData) {
-        console.log('[Multiplayer] First data received from:', conn.peer);
-        firstData = false;
-      }
       this.onData(data);
     });
 
     conn.on('close', () => {
-      console.log('Connection closed');
-      this.conn = null;
+      console.log('[Multiplayer] Connection closed by peer');
       this.onDisconnected();
     });
 
     conn.on('error', (err) => {
-      console.error('Connection error:', err);
+      console.error('[Multiplayer] Data channel error:', err);
+      this.onError('Data channel failed to open.');
     });
   }
 

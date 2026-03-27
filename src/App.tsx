@@ -119,10 +119,10 @@ export default function App() {
       // Connection timeout
       setTimeout(() => {
         if (!engineRef.current?.isMultiplayer || !isConnected) {
-          console.log('[App] Connection timeout reached');
+          console.log('[App] Connection timeout reached (20s)');
           setIsConnecting(false);
         }
-      }, 10000);
+      }, 20000);
     } else {
       console.log('[App] Join Game failed: targetPeerId or mpManager missing');
     }
