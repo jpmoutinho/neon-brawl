@@ -9,6 +9,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mpManagerRef = useRef<MultiplayerManager | null>(null);
+  const isConnectedRef = useRef(false);
   const [kills, setKills] = useState({ p1: 0, p2: 0 });
   const [gameStarted, setGameStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -105,8 +106,6 @@ export default function App() {
     if (targetPeerId && mpManagerRef.current) {
       setIsConnecting(true);
       mpManagerRef.current.connect(targetPeerId);
-      
-      const isConnectedRef = useRef(false);
 
       // Keep it in sync
       useEffect(() => { isConnectedRef.current = isConnected; }, [isConnected]);
