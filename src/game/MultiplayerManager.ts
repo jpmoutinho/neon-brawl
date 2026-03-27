@@ -46,22 +46,29 @@ export class MultiplayerManager {
     this.peer = new Peer({
       config: {
         iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          }
+            {
+              urls: "stun:stun.relay.metered.ca:80",
+            },
+            {
+              urls: "turn:global.relay.metered.ca:80",
+              username: "c337677a6163b83f86de2d05",
+              credential: "qbfP8TlCJE5urIWf",
+            },
+            {
+              urls: "turn:global.relay.metered.ca:80?transport=tcp",
+              username: "c337677a6163b83f86de2d05",
+              credential: "qbfP8TlCJE5urIWf",
+            },
+            {
+              urls: "turn:global.relay.metered.ca:443",
+              username: "c337677a6163b83f86de2d05",
+              credential: "qbfP8TlCJE5urIWf",
+            },
+            {
+              urls: "turns:global.relay.metered.ca:443?transport=tcp",
+              username: "c337677a6163b83f86de2d05",
+              credential: "qbfP8TlCJE5urIWf",
+            },
         ],
         iceTransportPolicy: 'all'
       }

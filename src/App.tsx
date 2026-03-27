@@ -5,7 +5,7 @@ import { Keyboard, Settings2, Palette, Users, Link as LinkIcon, Copy, Check } fr
 import { MultiplayerManager, GameState, PlayerInput } from './game/MultiplayerManager';
 
 export default function App() {
-  const VERSION = '1.0.8';
+  const VERSION = '1.0.9';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mpManagerRef = useRef<MultiplayerManager | null>(null);
