@@ -42,6 +42,11 @@ export class GameEngine {
     requestAnimationFrame(this.loop.bind(this));
   }
 
+  private getLocalPlayer(): Player | undefined {
+    const index = (this.isMultiplayer && !this.isHost) ? 1 : 0;
+    return this.players[index];
+  }
+
   setupInput() {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && this.isRunning) {
@@ -52,8 +57,8 @@ export class GameEngine {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
 
     this.canvas.addEventListener('mousedown', (e) => {
-      const p1 = this.players[0];
-      if (p1 && p1.isAlive && p1.hasBoomerang) {
+      const lp = this.getLocalPlayer();
+      if (lp && lp.isAlive && lp.hasBoomerang) {
         this.isAiming = true;
       }
     });
@@ -67,16 +72,20 @@ export class GameEngine {
     window.addEventListener('mouseup', () => {
       if (this.isAiming) {
         this.isAiming = false;
-        const p1 = this.players[0];
-        if (p1 && p1.isAlive && p1.hasBoomerang) {
-          const dx = this.mousePos.x - p1.pos.x;
-          const dy = this.mousePos.y - p1.pos.y;
-          const mag = Math.sqrt(dx * dx + dy * dy);
-          
-          if (mag > 5) {
-            const vx = dx / mag;
-            const vy = dy / mag;
-            this.throwBoomerang(p1, vx, vy, 1.0); // Full speed
+        
+        // Only host actually executes the throw in simulation
+        if (!this.isMultiplayer || this.isHost) {
+          const lp = this.getLocalPlayer();
+          if (lp && lp.isAlive && lp.hasBoomerang) {
+            const dx = this.mousePos.x - lp.pos.x;
+            const dy = this.mousePos.y - lp.pos.y;
+            const mag = Math.sqrt(dx * dx + dy * dy);
+            
+            if (mag > 5) {
+              const vx = dx / mag;
+              const vy = dy / mag;
+              this.throwBoomerang(lp, vx, vy, 1.0); // Full speed
+            }
           }
         }
       }
@@ -249,13 +258,12 @@ export class GameEngine {
     if (this.isMultiplayer && !this.isHost) {
       // Client only sends inputs
       if (this.onInputUpdate) {
-        const p2 = this.players[1];
         const input: PlayerInput = {
           up: this.keys.has('KeyW'),
           down: this.keys.has('KeyS'),
           left: this.keys.has('KeyA'),
           right: this.keys.has('KeyD'),
-          slash: this.keys.has('Space') && p2.hasBoomerang,
+          slash: this.keys.has('Space'),
           dash: this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'),
           mousePos: { ...this.mousePos },
           isThrowing: this.isAiming,
@@ -281,7 +289,7 @@ export class GameEngine {
         down: this.keys.has('KeyS'),
         left: this.keys.has('KeyA'),
         right: this.keys.has('KeyD'),
-        slash: this.keys.has('Space') && p1.hasBoomerang,
+        slash: this.keys.has('Space'),
         dash: this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'),
       });
       if (!wasSlashing && p1.isSlashing) {
@@ -468,20 +476,21 @@ export class GameEngine {
         if (owner.id === 'Player 1') {
           shouldRecall = this.keys.has('Space');
         } else {
-          // AI recalls if boomerang is far or slow
-          const dx = owner.pos.x - b.pos.x;
-          const dy = owner.pos.y - b.pos.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const speed = Math.sqrt(b.vel.x * b.vel.x + b.vel.y * b.vel.y);
-          if (dist > 300 || speed < 5) {
-            shouldRecall = true;
+          if (this.isMultiplayer && this.isHost) {
+            shouldRecall = this.remoteInput.slash;
+          } else {
+            // AI recalls if boomerang is far or slow
+            const dx = owner.pos.x - b.pos.x;
+            const dy = owner.pos.y - b.pos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const speed = Math.sqrt(b.vel.x * b.vel.x + b.vel.y * b.vel.y);
+            if (dist > 300 || speed < 5) {
+              shouldRecall = true;
+            }
           }
         }
 
         if (shouldRecall) {
-          if (owner.id === 'Player 1' && !this.keys.has('Space')) {
-            // Just started recalling
-          }
           const dx = owner.pos.x - b.pos.x;
           const dy = owner.pos.y - b.pos.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1051,40 +1060,42 @@ export class GameEngine {
 
     // Draw aiming arrow (Neon)
     if (this.isAiming) {
-      const p1 = this.players[0];
-      const dx = this.mousePos.x - p1.pos.x;
-      const dy = this.mousePos.y - p1.pos.y;
-      const mag = Math.sqrt(dx * dx + dy * dy);
-      
-      if (mag > 5) {
-        const angle = Math.atan2(dy, dx);
-        const length = 112.5; // 50% longer than 75
+      const lp = this.getLocalPlayer();
+      if (lp) {
+        const dx = this.mousePos.x - lp.pos.x;
+        const dy = this.mousePos.y - lp.pos.y;
+        const mag = Math.sqrt(dx * dx + dy * dy);
         
-        this.ctx.save();
-        this.ctx.translate(p1.pos.x, p1.pos.y);
-        this.ctx.rotate(angle);
-        
-        // Arrow line
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, 0);
-        this.ctx.lineTo(length, 0);
-        this.ctx.strokeStyle = p1.color;
-        this.ctx.lineWidth = 3;
-        this.ctx.setLineDash([5, 5]);
-        this.ctx.shadowBlur = 15;
-        this.ctx.shadowColor = p1.color;
-        this.ctx.stroke();
-        
-        // Arrow head
-        this.ctx.beginPath();
-        this.ctx.moveTo(length, 0);
-        this.ctx.lineTo(length - 10, -10);
-        this.ctx.lineTo(length - 10, 10);
-        this.ctx.closePath();
-        this.ctx.fillStyle = p1.color;
-        this.ctx.fill();
-        
-        this.ctx.restore();
+        if (mag > 5) {
+          const angle = Math.atan2(dy, dx);
+          const length = 112.5; // 50% longer than 75
+          
+          this.ctx.save();
+          this.ctx.translate(lp.pos.x, lp.pos.y);
+          this.ctx.rotate(angle);
+          
+          // Arrow line
+          this.ctx.beginPath();
+          this.ctx.moveTo(0, 0);
+          this.ctx.lineTo(length, 0);
+          this.ctx.strokeStyle = lp.color;
+          this.ctx.lineWidth = 3;
+          this.ctx.setLineDash([5, 5]);
+          this.ctx.shadowBlur = 15;
+          this.ctx.shadowColor = lp.color;
+          this.ctx.stroke();
+          
+          // Arrow head
+          this.ctx.beginPath();
+          this.ctx.moveTo(length, 0);
+          this.ctx.lineTo(length - 10, -10);
+          this.ctx.lineTo(length - 10, 10);
+          this.ctx.closePath();
+          this.ctx.fillStyle = lp.color;
+          this.ctx.fill();
+          
+          this.ctx.restore();
+        }
       }
     }
 
