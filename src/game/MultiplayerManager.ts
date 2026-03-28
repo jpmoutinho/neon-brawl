@@ -137,20 +137,20 @@ export class MultiplayerManager {
     this.conn = conn;
 
     const attachMonitoring = (pc: RTCPeerConnection) => {
-      pc.oniceconnectionstatechange = () => {
+      pc.addEventListener('iceconnectionstatechange', () => {
         console.log('[ICE state]', pc.iceConnectionState);
         this.onIceStateChange(pc.iceConnectionState);
-      };
-      pc.onicegatheringstatechange = () => {
+      });
+      pc.addEventListener('icegatheringstatechange', () => {
         console.log('[ICE gathering]', pc.iceGatheringState);
-      };
-      pc.onicecandidate = (e) => {
+      });
+      pc.addEventListener('icecandidate', (e) => {
         if (e.candidate) {
           console.log('[ICE candidate]', e.candidate.type, e.candidate.candidate);
         } else {
           console.log('[ICE candidate] gathering complete');
         }
-      };
+      });
     };
 
     // PeerJS may not have created peerConnection yet — wait for open
