@@ -11,6 +11,8 @@ export class Player {
   score: number = 0;
   kills: number = 0;
   speedMultiplier: number = 1.0;
+  isInvulnerable: boolean = false;
+  invulnerabilityTimer: number = 0;
   
   // Slash state
   isSlashing: boolean = false;
@@ -136,6 +138,13 @@ export class Player {
     if (this.dashCooldown > 0) {
       this.dashCooldown--;
     }
+
+    if (this.invulnerabilityTimer > 0) {
+      this.invulnerabilityTimer--;
+      if (this.invulnerabilityTimer <= 0) {
+        this.isInvulnerable = false;
+      }
+    }
   }
 
   draw(ctx: CanvasRenderingContext2D) {
@@ -190,6 +199,11 @@ export class Player {
     if (!isGhost) {
       ctx.shadowBlur = 30;
       ctx.shadowColor = this.color;
+      
+      // Flashing effect for invulnerability
+      if (this.isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) {
+        ctx.globalAlpha = 0.3;
+      }
     }
 
     // Outer Ring
@@ -252,5 +266,7 @@ export class Player {
     this.isSlashing = false;
     this.slashTimer = 0;
     this.slashCooldown = 0;
+    this.isInvulnerable = true;
+    this.invulnerabilityTimer = 120; // 2 seconds at 60fps
   }
 }

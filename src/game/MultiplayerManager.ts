@@ -1,8 +1,8 @@
 import { Peer, DataConnection } from 'peerjs';
 
 export type GameState = {
-  p1: { pos: { x: number, y: number }, vel: { x: number, y: number }, facing: { x: number, y: number }, isSlashing: boolean, isDashing: boolean, isAlive: boolean, kills: number, hasBoomerang: boolean };
-  p2: { pos: { x: number, y: number }, vel: { x: number, y: number }, facing: { x: number, y: number }, isSlashing: boolean, isDashing: boolean, isAlive: boolean, kills: number, hasBoomerang: boolean };
+  p1: { pos: { x: number, y: number }, vel: { x: number, y: number }, facing: { x: number, y: number }, isSlashing: boolean, isDashing: boolean, isAlive: boolean, kills: number, hasBoomerang: boolean, isInvulnerable: boolean };
+  p2: { pos: { x: number, y: number }, vel: { x: number, y: number }, facing: { x: number, y: number }, isSlashing: boolean, isDashing: boolean, isAlive: boolean, kills: number, hasBoomerang: boolean, isInvulnerable: boolean };
   boomerangs: { pos: { x: number, y: number }, vel: { x: number, y: number }, ownerId: string, isReturning: boolean, angle: number, color: string }[];
   particles: { pos: { x: number, y: number }, color: string, life: number }[];
   lightBursts: { x: number, y: number, radius: number, maxRadius: number, life: number, color: string }[];

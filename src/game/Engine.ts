@@ -687,7 +687,8 @@ export class GameEngine {
         isDashing: this.players[0].isDashing, 
         isAlive: this.players[0].isAlive, 
         kills: this.players[0].kills, 
-        hasBoomerang: this.players[0].hasBoomerang 
+        hasBoomerang: this.players[0].hasBoomerang,
+        isInvulnerable: this.players[0].isInvulnerable
       },
       p2: { 
         pos: { ...this.players[1].pos }, 
@@ -697,7 +698,8 @@ export class GameEngine {
         isDashing: this.players[1].isDashing, 
         isAlive: this.players[1].isAlive, 
         kills: this.players[1].kills, 
-        hasBoomerang: this.players[1].hasBoomerang 
+        hasBoomerang: this.players[1].hasBoomerang,
+        isInvulnerable: this.players[1].isInvulnerable
       },
       boomerangs: this.boomerangs.map(b => ({
         pos: { ...b.pos },
@@ -728,6 +730,7 @@ export class GameEngine {
     this.players[0].isAlive = state.p1.isAlive;
     this.players[0].kills = state.p1.kills;
     this.players[0].hasBoomerang = state.p1.hasBoomerang;
+    this.players[0].isInvulnerable = state.p1.isInvulnerable;
 
     this.players[1].pos = { ...state.p2.pos };
     this.players[1].vel = { ...state.p2.vel };
@@ -737,6 +740,7 @@ export class GameEngine {
     this.players[1].isAlive = state.p2.isAlive;
     this.players[1].kills = state.p2.kills;
     this.players[1].hasBoomerang = state.p2.hasBoomerang;
+    this.players[1].isInvulnerable = state.p2.isInvulnerable;
 
     // Sync boomerangs
     this.boomerangs = state.boomerangs.map(bData => {
@@ -890,7 +894,7 @@ export class GameEngine {
   }
 
   killPlayer(player: Player, killerId?: string) {
-    if (!player.isAlive) return;
+    if (!player.isAlive || player.isInvulnerable) return;
     player.isAlive = false;
     
     // Screen Shake
