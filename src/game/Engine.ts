@@ -704,7 +704,8 @@ export class GameEngine {
         vel: { ...b.vel },
         ownerId: b.ownerId,
         isReturning: b.isReturning,
-        angle: b.angle
+        angle: b.angle,
+        color: b.color
       })),
       particles: this.particles.map(p => ({
         pos: { ...p.pos },
@@ -739,7 +740,7 @@ export class GameEngine {
 
     // Sync boomerangs
     this.boomerangs = state.boomerangs.map(bData => {
-      const b = new Boomerang(bData.ownerId, bData.pos.x, bData.pos.y, 0, 0);
+      const b = new Boomerang(bData.ownerId, bData.pos.x, bData.pos.y, 0, 0, bData.color);
       b.vel = { ...bData.vel };
       b.isReturning = bData.isReturning;
       b.angle = bData.angle;

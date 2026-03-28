@@ -116,7 +116,7 @@ export class Player {
     this.pos.y += this.vel.y;
 
     // Slash logic
-    if (input.slash && this.slashCooldown <= 0) {
+    if (input.slash && this.slashCooldown <= 0 && this.hasBoomerang) {
       this.isSlashing = true;
       this.slashTimer = SLASH_DURATION;
       this.slashCooldown = SLASH_COOLDOWN;
