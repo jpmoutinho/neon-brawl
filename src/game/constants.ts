@@ -6,6 +6,7 @@ export const PLAYER_SPEED = 5;
 export const PLAYER_ACCEL = 1.2;
 export const PLAYER_FRICTION = 0.82;
 
+export const BOOMERANG_MAX_SPEED = 40;
 export const BOOMERANG_RADIUS = 10;
 export const BOOMERANG_THROW_SPEED = 21.6;
 export const BOOMERANG_RETURN_ACCEL = 0.8;

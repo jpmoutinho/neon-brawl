@@ -2,7 +2,7 @@ import { Player } from './Player';
 import { Boomerang } from './Boomerang';
 import { Particle } from './Particle';
 import { Powerup, PowerupType } from './Powerup';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, SLASH_RANGE, SLASH_ANGLE, Point, Rect, POWERUP_SPAWN_INTERVAL, POWERUP_DURATION } from './constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, SLASH_RANGE, SLASH_ANGLE, BOOMERANG_MAX_SPEED, Point, Rect, POWERUP_SPAWN_INTERVAL, POWERUP_DURATION } from './constants';
 import { GameState, PlayerInput } from './MultiplayerManager';
 
 export class GameEngine {
@@ -155,6 +155,9 @@ export class GameEngine {
   }
 
   private playSound(freq: number, type: OscillatorType = 'sine', duration: number = 0.1, volume: number = 0.1, sweep: boolean = false) {
+    if (this.isMultiplayer && this.isHost) {
+      this.pendingSounds.push({ freq, type, duration, volume, sweep });
+    }
     if (!this.audioCtx || this.audioCtx.state === 'suspended') return;
     
     const osc = this.audioCtx.createOscillator();
@@ -258,6 +261,7 @@ export class GameEngine {
   audioCtx: AudioContext | null = null;
   musicOsc: OscillatorNode | null = null;
   musicGain: GainNode | null = null;
+  pendingSounds: { freq: number, type: string, duration: number, volume: number, sweep: boolean }[] = [];
 
   update() {
     if (this.isMultiplayer && !this.isHost) {
@@ -395,7 +399,8 @@ export class GameEngine {
             if (Math.abs(diff) < SLASH_ANGLE / 2 + 0.4) {
               // Deflect!
               const speed = Math.sqrt(b.vel.x * b.vel.x + b.vel.y * b.vel.y);
-              const newSpeed = Math.min(Math.max(speed * 2, 15), 40);
+              const currentMaxSpeed = b.isElectric ? BOOMERANG_MAX_SPEED * 5 : BOOMERANG_MAX_SPEED;
+              const newSpeed = Math.min(Math.max(speed * 2, 15), currentMaxSpeed);
               
               b.vel.x = attacker.facing.x * newSpeed;
               b.vel.y = attacker.facing.y * newSpeed;
@@ -448,11 +453,14 @@ export class GameEngine {
               b2.vel.x *= 2;
               b2.vel.y *= 2;
               
-              const maxSpeed = 40;
               const s1 = Math.sqrt(b1.vel.x * b1.vel.x + b1.vel.y * b1.vel.y);
               const s2 = Math.sqrt(b2.vel.x * b2.vel.x + b2.vel.y * b2.vel.y);
-              if (s1 > maxSpeed && !b1.isElectric) { b1.vel.x = (b1.vel.x / s1) * maxSpeed; b1.vel.y = (b1.vel.y / s1) * maxSpeed; }
-              if (s2 > maxSpeed && !b2.isElectric) { b2.vel.x = (b2.vel.x / s2) * maxSpeed; b2.vel.y = (b2.vel.y / s2) * maxSpeed; }
+              
+              const maxSpeed1 = b1.isElectric ? BOOMERANG_MAX_SPEED * 5 : BOOMERANG_MAX_SPEED;
+              const maxSpeed2 = b2.isElectric ? BOOMERANG_MAX_SPEED * 5 : BOOMERANG_MAX_SPEED;
+              
+              if (s1 > maxSpeed1) { b1.vel.x = (b1.vel.x / s1) * maxSpeed1; b1.vel.y = (b1.vel.y / s1) * maxSpeed1; }
+              if (s2 > maxSpeed2) { b2.vel.x = (b2.vel.x / s2) * maxSpeed2; b2.vel.y = (b2.vel.y / s2) * maxSpeed2; }
 
               // Push apart
               const overlap = radiusSum - dist;
@@ -784,7 +792,7 @@ export class GameEngine {
   }
 
   getState(): GameState {
-    return {
+    const state: GameState = {
       p1: { 
         pos: { ...this.players[0].pos }, 
         vel: { ...this.players[0].vel }, 
@@ -795,7 +803,8 @@ export class GameEngine {
         kills: this.players[0].kills, 
         hasBoomerang: this.players[0].hasBoomerang,
         isInvulnerable: this.players[0].isInvulnerable,
-        isMovementReversed: this.players[0].isMovementReversed
+        isMovementReversed: this.players[0].isMovementReversed,
+        isElectricBoogalooActive: this.players[0].isElectricBoogalooActive
       },
       p2: { 
         pos: { ...this.players[1].pos }, 
@@ -807,7 +816,8 @@ export class GameEngine {
         kills: this.players[1].kills, 
         hasBoomerang: this.players[1].hasBoomerang,
         isInvulnerable: this.players[1].isInvulnerable,
-        isMovementReversed: this.players[1].isMovementReversed
+        isMovementReversed: this.players[1].isMovementReversed,
+        isElectricBoogalooActive: this.players[1].isElectricBoogalooActive
       },
       boomerangs: this.boomerangs.map(b => ({
         pos: { ...b.pos },
@@ -815,7 +825,8 @@ export class GameEngine {
         ownerId: b.ownerId,
         isReturning: b.isReturning,
         angle: b.angle,
-        color: b.color
+        color: b.color,
+        isElectric: b.isElectric
       })),
       powerups: this.powerups.map(p => ({
         id: p.id,
@@ -828,8 +839,11 @@ export class GameEngine {
         life: p.life
       })),
       lightBursts: this.lightBursts.map(lb => ({ ...lb })),
+      sounds: [...this.pendingSounds],
       envColor: this.envColor
     };
+    this.pendingSounds = [];
+    return state;
   }
 
   applyState(state: GameState) {
@@ -845,6 +859,7 @@ export class GameEngine {
     this.players[0].hasBoomerang = state.p1.hasBoomerang;
     this.players[0].isInvulnerable = state.p1.isInvulnerable;
     this.players[0].isMovementReversed = state.p1.isMovementReversed;
+    this.players[0].isElectricBoogalooActive = state.p1.isElectricBoogalooActive;
 
     this.players[1].pos = { ...state.p2.pos };
     this.players[1].vel = { ...state.p2.vel };
@@ -856,6 +871,7 @@ export class GameEngine {
     this.players[1].hasBoomerang = state.p2.hasBoomerang;
     this.players[1].isInvulnerable = state.p2.isInvulnerable;
     this.players[1].isMovementReversed = state.p2.isMovementReversed;
+    this.players[1].isElectricBoogalooActive = state.p2.isElectricBoogalooActive;
 
     // Sync boomerangs
     this.boomerangs = state.boomerangs.map(bData => {
@@ -863,6 +879,7 @@ export class GameEngine {
       b.vel = { ...bData.vel };
       b.isReturning = bData.isReturning;
       b.angle = bData.angle;
+      b.isElectric = bData.isElectric;
       return b;
     });
 
@@ -880,6 +897,10 @@ export class GameEngine {
 
     this.lightBursts = state.lightBursts.map(lb => ({ ...lb }));
     this.envColor = state.envColor;
+
+    state.sounds.forEach(s => {
+      this.playSound(s.freq, s.type as OscillatorType, s.duration, s.volume, s.sweep);
+    });
 
     if (this.onKillsUpdate) {
       this.onKillsUpdate(this.players[0].kills, this.players[1].kills);

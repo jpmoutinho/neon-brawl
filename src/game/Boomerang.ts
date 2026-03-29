@@ -1,4 +1,4 @@
-import { Point, Vector, BOOMERANG_RADIUS, BOOMERANG_THROW_SPEED, BOOMERANG_ROTATION_SPEED, COLORS } from './constants';
+import { Point, Vector, BOOMERANG_RADIUS, BOOMERANG_THROW_SPEED, BOOMERANG_ROTATION_SPEED, BOOMERANG_MAX_SPEED, COLORS } from './constants';
 
 export class Boomerang {
   ownerId: string;
@@ -30,8 +30,16 @@ export class Boomerang {
       this.trail.pop();
     }
 
-    const speed = Math.sqrt(this.vel.x * this.vel.x + this.vel.y * this.vel.y);
+    let speed = Math.sqrt(this.vel.x * this.vel.x + this.vel.y * this.vel.y);
     
+    // Enforce speed limit
+    const currentMaxSpeed = this.isElectric ? BOOMERANG_MAX_SPEED * 5 : BOOMERANG_MAX_SPEED;
+    if (speed > currentMaxSpeed) {
+      this.vel.x = (this.vel.x / speed) * currentMaxSpeed;
+      this.vel.y = (this.vel.y / speed) * currentMaxSpeed;
+      speed = currentMaxSpeed;
+    }
+
     // Rotation slows down linearly with speed
     this.angle += BOOMERANG_ROTATION_SPEED * (speed / 10);
 
