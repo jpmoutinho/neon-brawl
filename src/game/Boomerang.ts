@@ -12,6 +12,7 @@ export class Boomerang {
   color: string;
   isReturning: boolean = false;
   angle: number = 0;
+  isElectric: boolean = false;
 
   constructor(ownerId: string, x: number, y: number, vx: number, vy: number, color: string = COLORS.DAGGER) {
     this.ownerId = ownerId;
@@ -62,7 +63,7 @@ export class Boomerang {
     if (this.trail.length > 1) {
       ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = this.color;
+      ctx.strokeStyle = this.isElectric ? '#FF00FF' : this.color;
       ctx.lineWidth = 2;
       ctx.globalAlpha = 0.2;
       ctx.moveTo(this.trail[0].x, this.trail[0].y);
@@ -91,11 +92,12 @@ export class Boomerang {
     ctx.globalAlpha = flicker;
 
     // Outer Glow (Optimized: lower shadowBlur)
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = this.color;
+    ctx.shadowBlur = this.isElectric ? 40 : 15;
+    const drawColor = this.isElectric ? '#FF00FF' : this.color;
+    ctx.shadowColor = drawColor;
     
     // Blade (Triangle)
-    ctx.fillStyle = this.color;
+    ctx.fillStyle = drawColor;
     ctx.beginPath();
     ctx.moveTo(bladeLength, 0); // Tip
     ctx.lineTo(-bladeLength / 2, -bladeWidth / 2); // Bottom left

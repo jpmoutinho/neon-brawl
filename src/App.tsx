@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './game/Engine';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, NEON_PALETTE } from './game/constants';
-import { Keyboard, Settings2, Palette, Users, Link as LinkIcon, Copy, Check } from 'lucide-react';
+import { Keyboard, Settings2, Palette, Users, Link as LinkIcon, Copy, Check, Zap, RefreshCcw } from 'lucide-react';
 import { MultiplayerManager, GameState, PlayerInput } from './game/MultiplayerManager';
 
 export default function App() {
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.1';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mpManagerRef = useRef<MultiplayerManager | null>(null);
@@ -299,32 +299,64 @@ export default function App() {
 
         {!gameStarted && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 rounded-lg backdrop-blur-none border-0 overflow-y-auto p-8">
-            <div className="w-full max-w-md flex flex-col gap-10">
+            <div className="w-full max-w-4xl flex flex-col items-center gap-10">
               {multiplayerMode !== 'join' ? (
                 <>
-                  {/* Controls Box */}
-                  <div className="bg-white/5 border border-white/20 rounded-xl p-6 relative overflow-hidden animate-in fade-in zoom-in duration-300">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-[#00FFFF]"></div>
-                    <h3 className="font-black text-xl mb-4 uppercase italic tracking-tighter text-white flex items-center gap-2">
-                      <Keyboard className="w-5 h-5 text-[#00FFFF]" />
-                      Controls
-                    </h3>
-                    <div className="grid grid-cols-1 gap-2 text-[10px] text-gray-300 font-mono uppercase tracking-wider">
-                      <div className="flex justify-between bg-white/5 px-3 py-2 rounded">
-                        <span>Movement</span>
-                        <span className="text-[#00FFFF]">WASD</span>
+                  {/* Info Boxes Row */}
+                  <div className="flex gap-4 w-full max-w-2xl animate-in fade-in zoom-in duration-300">
+                    {/* Controls Box */}
+                    <div className="flex-1 bg-white/5 border border-white/20 rounded-xl p-6 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-[#00FFFF]"></div>
+                      <h3 className="font-black text-xl mb-4 uppercase italic tracking-tighter text-white flex items-center gap-2">
+                        <Keyboard className="w-5 h-5 text-[#00FFFF]" />
+                        Controls
+                      </h3>
+                      <div className="grid grid-cols-1 gap-2 text-[10px] text-gray-300 font-mono uppercase tracking-wider">
+                        <div className="flex justify-between bg-white/5 px-3 py-2 rounded">
+                          <span>Movement</span>
+                          <span className="text-[#00FFFF]">WASD</span>
+                        </div>
+                        <div className="flex justify-between bg-white/5 px-3 py-2 rounded">
+                          <span>Dash</span>
+                          <span className="text-[#00FFFF]">SHIFT</span>
+                        </div>
+                        <div className="flex justify-between bg-white/5 px-3 py-2 rounded">
+                          <span>Aim & Throw</span>
+                          <span className="text-[#00FFFF]">CLICK & RELEASE</span>
+                        </div>
+                        <div className="flex justify-between bg-white/5 px-3 py-2 rounded">
+                          <span>Slash / Recall</span>
+                          <span className="text-[#00FFFF]">SPACE</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between bg-white/5 px-3 py-2 rounded">
-                        <span>Dash</span>
-                        <span className="text-[#00FFFF]">SHIFT</span>
-                      </div>
-                      <div className="flex justify-between bg-white/5 px-3 py-2 rounded">
-                        <span>Aim & Throw</span>
-                        <span className="text-[#00FFFF]">CLICK & RELEASE</span>
-                      </div>
-                      <div className="flex justify-between bg-white/5 px-3 py-2 rounded">
-                        <span>Slash / Recall</span>
-                        <span className="text-[#00FFFF]">SPACE</span>
+                    </div>
+
+                    {/* Powerups Box */}
+                    <div className="flex-1 bg-white/5 border border-white/20 rounded-xl p-6 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-[#FFFF00]"></div>
+                      <h3 className="font-black text-xl mb-4 uppercase italic tracking-tighter text-white flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-[#FFFF00]" />
+                        Powerups
+                      </h3>
+                      <div className="grid grid-cols-1 gap-2 text-[10px] text-gray-300 font-mono uppercase tracking-wider">
+                        <div className="flex items-center gap-3 bg-white/5 px-3 py-2 rounded">
+                          <div className="w-8 h-8 flex items-center justify-center border border-[#FFFF00] rounded-full shadow-[0_0_10px_rgba(255,255,0,0.3)]">
+                            <RefreshCcw className="w-4 h-4 text-[#FFFF00]" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[#FFFF00] font-black">MOONWALKER</span>
+                            <span className="text-[8px] opacity-70">OPPONENT BECOMES A SMOOTH CRIMINAL</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 bg-white/5 px-3 py-2 rounded">
+                          <div className="w-8 h-8 flex items-center justify-center border border-[#FF00FF] rounded-full shadow-[0_0_10px_rgba(255,0,255,0.3)]">
+                            <Zap className="w-4 h-4 text-[#FF00FF]" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[#FF00FF] font-black">ELECTRIC BOOGALOO</span>
+                            <span className="text-[8px] opacity-70">PLAYER CHANNELS THE MAP FREQUENCY</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

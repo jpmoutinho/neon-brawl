@@ -13,6 +13,10 @@ export class Player {
   speedMultiplier: number = 1.0;
   isInvulnerable: boolean = false;
   invulnerabilityTimer: number = 0;
+  isMovementReversed: boolean = false;
+  reverseMovementTimer: number = 0;
+  isElectricBoogalooActive: boolean = false;
+  electricBoogalooTimer: number = 0;
   
   // Slash state
   isSlashing: boolean = false;
@@ -38,10 +42,20 @@ export class Player {
   update(input: { up: boolean; down: boolean; left: boolean; right: boolean; slash: boolean; dash: boolean }) {
     if (!this.isAlive) return;
 
+    // Apply reversed movement if active
+    const actualInput = { ...input };
+    if (this.isMovementReversed) {
+      if (input.up) { actualInput.up = false; actualInput.down = true; }
+      else if (input.down) { actualInput.up = true; actualInput.down = false; }
+      
+      if (input.left) { actualInput.left = false; actualInput.right = true; }
+      else if (input.right) { actualInput.left = true; actualInput.right = false; }
+    }
+
     const currentMaxSpeed = PLAYER_SPEED * this.speedMultiplier;
 
     // Dash trigger
-    if (input.dash && this.dashCooldown <= 0 && !this.isDashing) {
+    if (actualInput.dash && this.dashCooldown <= 0 && !this.isDashing) {
       this.isDashing = true;
       this.dashTimer = 10;
       this.dashCooldown = 40;
@@ -49,10 +63,10 @@ export class Player {
       // Dash in movement direction if moving, otherwise facing direction
       let dx = 0;
       let dy = 0;
-      if (input.up) dy -= 1;
-      if (input.down) dy += 1;
-      if (input.left) dx -= 1;
-      if (input.right) dx += 1;
+      if (actualInput.up) dy -= 1;
+      if (actualInput.down) dy += 1;
+      if (actualInput.left) dx -= 1;
+      if (actualInput.right) dx += 1;
       
       if (dx === 0 && dy === 0) {
         this.dashDir = { ...this.facing };
@@ -80,10 +94,10 @@ export class Player {
       });
     } else {
       // Apply acceleration
-      if (input.up) this.vel.y -= PLAYER_ACCEL;
-      if (input.down) this.vel.y += PLAYER_ACCEL;
-      if (input.left) this.vel.x -= PLAYER_ACCEL;
-      if (input.right) this.vel.x += PLAYER_ACCEL;
+      if (actualInput.up) this.vel.y -= PLAYER_ACCEL;
+      if (actualInput.down) this.vel.y += PLAYER_ACCEL;
+      if (actualInput.left) this.vel.x -= PLAYER_ACCEL;
+      if (actualInput.right) this.vel.x += PLAYER_ACCEL;
 
       // Apply friction
       this.vel.x *= PLAYER_FRICTION;
@@ -118,7 +132,7 @@ export class Player {
     this.pos.y += this.vel.y;
 
     // Slash logic
-    if (input.slash && this.slashCooldown <= 0 && this.hasBoomerang) {
+    if (actualInput.slash && this.slashCooldown <= 0 && this.hasBoomerang) {
       this.isSlashing = true;
       this.slashTimer = SLASH_DURATION;
       this.slashCooldown = SLASH_COOLDOWN;
@@ -143,6 +157,20 @@ export class Player {
       this.invulnerabilityTimer--;
       if (this.invulnerabilityTimer <= 0) {
         this.isInvulnerable = false;
+      }
+    }
+
+    if (this.reverseMovementTimer > 0) {
+      this.reverseMovementTimer--;
+      if (this.reverseMovementTimer <= 0) {
+        this.isMovementReversed = false;
+      }
+    }
+
+    if (this.electricBoogalooTimer > 0) {
+      this.electricBoogalooTimer--;
+      if (this.electricBoogalooTimer <= 0) {
+        this.isElectricBoogalooActive = false;
       }
     }
   }
@@ -198,25 +226,31 @@ export class Player {
     // Neon Glow for Body
     if (!isGhost) {
       ctx.shadowBlur = 30;
-      ctx.shadowColor = this.color;
+      ctx.shadowColor = this.isElectricBoogalooActive ? '#FF00FF' : this.color;
       
-      // Flashing effect for invulnerability
+      // Flashing effect for invulnerability or Electric Boogaloo
       if (this.isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) {
         ctx.globalAlpha = 0.3;
       }
+      if (this.isElectricBoogalooActive) {
+        // Bright shine effect
+        ctx.shadowBlur = 50;
+      }
     }
+
+    const bodyColor = this.isElectricBoogalooActive ? '#FF00FF' : this.color;
 
     // Outer Ring
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, this.radius, 0, Math.PI * 2);
-    ctx.strokeStyle = this.color;
+    ctx.strokeStyle = bodyColor;
     ctx.lineWidth = 3;
     ctx.stroke();
 
     // Body Fill
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, this.radius - 2, 0, Math.PI * 2);
-    ctx.fillStyle = this.color + '44'; // Semi-transparent
+    ctx.fillStyle = bodyColor + '44'; // Semi-transparent
     ctx.fill();
     
     // Core Highlight
@@ -266,6 +300,10 @@ export class Player {
     this.isSlashing = false;
     this.slashTimer = 0;
     this.slashCooldown = 0;
+    this.isMovementReversed = false;
+    this.reverseMovementTimer = 0;
+    this.isElectricBoogalooActive = false;
+    this.electricBoogalooTimer = 0;
     this.isInvulnerable = true;
     this.invulnerabilityTimer = 120; // 2 seconds at 60fps
   }

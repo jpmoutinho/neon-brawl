@@ -18,6 +18,10 @@ export const SLASH_DURATION = 10; // frames
 export const SLASH_RANGE = 45;
 export const SLASH_ANGLE = Math.PI / 1.5;
 
+export const POWERUP_RADIUS = 15;
+export const POWERUP_SPAWN_INTERVAL = 600; // 10 seconds at 60fps
+export const POWERUP_DURATION = 600; // 10 seconds of effect
+
 export const COLORS = {
   PLAYER1: '#00FFFF', // Neon Teal/Cyan
   PLAYER2: '#FF3131', // Neon Red

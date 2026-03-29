@@ -1,7 +1,8 @@
 import { Player } from './Player';
 import { Boomerang } from './Boomerang';
 import { Particle } from './Particle';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, SLASH_RANGE, SLASH_ANGLE, Point, Rect } from './constants';
+import { Powerup, PowerupType } from './Powerup';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, SLASH_RANGE, SLASH_ANGLE, Point, Rect, POWERUP_SPAWN_INTERVAL, POWERUP_DURATION } from './constants';
 import { GameState, PlayerInput } from './MultiplayerManager';
 
 export class GameEngine {
@@ -9,6 +10,8 @@ export class GameEngine {
   ctx: CanvasRenderingContext2D;
   players: Player[] = [];
   boomerangs: Boomerang[] = [];
+  powerups: Powerup[] = [];
+  powerupSpawnTimer: number = POWERUP_SPAWN_INTERVAL;
   particles: Particle[] = [];
   lightBursts: { x: number; y: number; radius: number; maxRadius: number; life: number; color: string }[] = [];
   obstacles: Rect[] = [];
@@ -121,6 +124,8 @@ export class GameEngine {
       this.players.forEach(p => p.speedMultiplier = speedMultiplier);
 
       this.boomerangs = [];
+      this.powerups = [];
+      this.powerupSpawnTimer = POWERUP_SPAWN_INTERVAL;
       this.particles = [];
       
       // Scale obstacles for larger map
@@ -446,8 +451,8 @@ export class GameEngine {
               const maxSpeed = 40;
               const s1 = Math.sqrt(b1.vel.x * b1.vel.x + b1.vel.y * b1.vel.y);
               const s2 = Math.sqrt(b2.vel.x * b2.vel.x + b2.vel.y * b2.vel.y);
-              if (s1 > maxSpeed) { b1.vel.x = (b1.vel.x / s1) * maxSpeed; b1.vel.y = (b1.vel.y / s1) * maxSpeed; }
-              if (s2 > maxSpeed) { b2.vel.x = (b2.vel.x / s2) * maxSpeed; b2.vel.y = (b2.vel.y / s2) * maxSpeed; }
+              if (s1 > maxSpeed && !b1.isElectric) { b1.vel.x = (b1.vel.x / s1) * maxSpeed; b1.vel.y = (b1.vel.y / s1) * maxSpeed; }
+              if (s2 > maxSpeed && !b2.isElectric) { b2.vel.x = (b2.vel.x / s2) * maxSpeed; b2.vel.y = (b2.vel.y / s2) * maxSpeed; }
 
               // Push apart
               const overlap = radiusSum - dist;
@@ -511,29 +516,40 @@ export class GameEngine {
       }
 
       b.update();
+      const bOwner = this.players.find(p => p.id === b.ownerId);
+      b.isElectric = bOwner && bOwner.isElectricBoogalooActive || false;
 
       // Remove boomerang if owner is dead
-      const bOwner = this.players.find(p => p.id === b.ownerId);
       if (!bOwner || !bOwner.isAlive) {
         this.boomerangs.splice(i, 1);
         continue;
       }
 
       // Wall collisions (bounce)
+      let bounced = false;
       if (b.pos.x < b.radius) {
         b.pos.x = b.radius;
-        b.vel.x *= -0.8;
+        b.vel.x *= (bOwner && bOwner.isElectricBoogalooActive) ? -1.6 : -1.0;
+        bounced = true;
       } else if (b.pos.x > CANVAS_WIDTH - b.radius) {
         b.pos.x = CANVAS_WIDTH - b.radius;
-        b.vel.x *= -0.8;
+        b.vel.x *= (bOwner && bOwner.isElectricBoogalooActive) ? -1.6 : -1.0;
+        bounced = true;
       }
       
       if (b.pos.y < b.radius) {
         b.pos.y = b.radius;
-        b.vel.y *= -0.8;
+        b.vel.y *= (bOwner && bOwner.isElectricBoogalooActive) ? -1.6 : -1.0;
+        bounced = true;
       } else if (b.pos.y > CANVAS_HEIGHT - b.radius) {
         b.pos.y = CANVAS_HEIGHT - b.radius;
-        b.vel.y *= -0.8;
+        b.vel.y *= (bOwner && bOwner.isElectricBoogalooActive) ? -1.6 : -1.0;
+        bounced = true;
+      }
+
+      if (bounced && bOwner && bOwner.isElectricBoogalooActive) {
+        this.playSound(180, 'sawtooth', 0.25, 0.2); // Electric hum collision sound
+        this.createElectricBurst(b.pos.x, b.pos.y);
       }
 
       // Obstacle collisions
@@ -555,8 +571,14 @@ export class GameEngine {
             // Reflect velocity: v = v - 2 * (v . n) * n
             const dot = b.vel.x * nx + b.vel.y * ny;
             if (dot < 0) {
-              b.vel.x = (b.vel.x - 2 * dot * nx) * 0.8;
-              b.vel.y = (b.vel.y - 2 * dot * ny) * 0.8;
+              const bounceFactor = (bOwner && bOwner.isElectricBoogalooActive) ? 1.6 : 1.0;
+              b.vel.x = (b.vel.x - 2 * dot * nx) * bounceFactor;
+              b.vel.y = (b.vel.y - 2 * dot * ny) * bounceFactor;
+              
+              if (bOwner && bOwner.isElectricBoogalooActive) {
+                this.playSound(180, 'sawtooth', 0.25, 0.2); // Electric hum collision sound
+                this.createElectricBurst(closestX, closestY);
+              }
             }
             
             b.pos.x += nx * overlap;
@@ -569,18 +591,24 @@ export class GameEngine {
             const distBottom = Math.abs(b.pos.y - (obs.y + obs.height));
             const minDist = Math.min(distLeft, distRight, distTop, distBottom);
 
+            const bounceFactor = (bOwner && bOwner.isElectricBoogalooActive) ? 1.6 : 1.0;
             if (minDist === distLeft) {
               b.pos.x = obs.x - b.radius;
-              b.vel.x = -Math.abs(b.vel.x) * 0.8;
+              b.vel.x = -Math.abs(b.vel.x) * bounceFactor;
             } else if (minDist === distRight) {
               b.pos.x = obs.x + obs.width + b.radius;
-              b.vel.x = Math.abs(b.vel.x) * 0.8;
+              b.vel.x = Math.abs(b.vel.x) * bounceFactor;
             } else if (minDist === distTop) {
               b.pos.y = obs.y - b.radius;
-              b.vel.y = -Math.abs(b.vel.y) * 0.8;
+              b.vel.y = -Math.abs(b.vel.y) * bounceFactor;
             } else {
               b.pos.y = obs.y + obs.height + b.radius;
-              b.vel.y = Math.abs(b.vel.y) * 0.8;
+              b.vel.y = Math.abs(b.vel.y) * bounceFactor;
+            }
+
+            if (bOwner && bOwner.isElectricBoogalooActive) {
+              this.playSound(180, 'sawtooth', 0.25, 0.2);
+              this.createElectricBurst(b.pos.x, b.pos.y);
             }
           }
         }
@@ -675,6 +703,84 @@ export class GameEngine {
     if (this.isMultiplayer && this.isHost && this.onStateUpdate) {
       this.onStateUpdate(this.getState());
     }
+
+    // Powerup spawning (Host only)
+    if (!this.isMultiplayer || this.isHost) {
+      this.powerupSpawnTimer--;
+      if (this.powerupSpawnTimer <= 0) {
+        this.spawnPowerup();
+        this.powerupSpawnTimer = POWERUP_SPAWN_INTERVAL;
+      }
+    }
+
+    // Update powerups
+    for (let i = this.powerups.length - 1; i >= 0; i--) {
+      const p = this.powerups[i];
+      p.update();
+      if (p.life <= 0) {
+        this.powerups.splice(i, 1);
+        continue;
+      }
+
+      // Collision with players
+      for (const player of this.players) {
+        if (!player.isAlive) continue;
+        const dx = player.pos.x - p.pos.x;
+        const dy = player.pos.y - p.pos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < player.radius + p.radius) {
+          this.applyPowerup(player, p.type);
+          this.powerups.splice(i, 1);
+          break;
+        }
+      }
+    }
+  }
+
+  private spawnPowerup() {
+    const margin = 50;
+    let x, y, isValid = false;
+    let attempts = 0;
+
+    while (!isValid && attempts < 10) {
+      x = margin + Math.random() * (CANVAS_WIDTH - margin * 2);
+      y = margin + Math.random() * (CANVAS_HEIGHT - margin * 2);
+      
+      // Check obstacles
+      const hitObstacle = this.obstacles.some(obs => 
+        x! > obs.x - 20 && x! < obs.x + obs.width + 20 &&
+        y! > obs.y - 20 && y! < obs.y + obs.height + 20
+      );
+      
+      if (!hitObstacle) isValid = true;
+      attempts++;
+    }
+
+    if (isValid) {
+      const id = Math.random().toString(36).substr(2, 9);
+      const type = Math.random() < 0.33 ? PowerupType.REVERSE_MOVEMENT : PowerupType.ELECTRIC_BOOGALOO;
+      this.powerups.push(new Powerup(id, x!, y!, type));
+      this.playSound(600, 'square', 0.3, 0.1);
+    }
+  }
+
+  private applyPowerup(player: Player, type: PowerupType) {
+    this.playSound(800, 'triangle', 0.5, 0.15);
+    const effectColor = type === PowerupType.ELECTRIC_BOOGALOO ? '#FF00FF' : '#FFFF00';
+    this.createPickupEffect(player.pos.x, player.pos.y, effectColor);
+
+    if (type === PowerupType.REVERSE_MOVEMENT) {
+      // Apply to the OTHER player
+      const otherPlayer = this.players.find(p => p.id !== player.id);
+      if (otherPlayer) {
+        otherPlayer.isMovementReversed = true;
+        otherPlayer.reverseMovementTimer = POWERUP_DURATION;
+      }
+    } else if (type === PowerupType.ELECTRIC_BOOGALOO) {
+      // Apply to the player who picked it up
+      player.isElectricBoogalooActive = true;
+      player.electricBoogalooTimer = POWERUP_DURATION;
+    }
   }
 
   getState(): GameState {
@@ -688,7 +794,8 @@ export class GameEngine {
         isAlive: this.players[0].isAlive, 
         kills: this.players[0].kills, 
         hasBoomerang: this.players[0].hasBoomerang,
-        isInvulnerable: this.players[0].isInvulnerable
+        isInvulnerable: this.players[0].isInvulnerable,
+        isMovementReversed: this.players[0].isMovementReversed
       },
       p2: { 
         pos: { ...this.players[1].pos }, 
@@ -699,7 +806,8 @@ export class GameEngine {
         isAlive: this.players[1].isAlive, 
         kills: this.players[1].kills, 
         hasBoomerang: this.players[1].hasBoomerang,
-        isInvulnerable: this.players[1].isInvulnerable
+        isInvulnerable: this.players[1].isInvulnerable,
+        isMovementReversed: this.players[1].isMovementReversed
       },
       boomerangs: this.boomerangs.map(b => ({
         pos: { ...b.pos },
@@ -708,6 +816,11 @@ export class GameEngine {
         isReturning: b.isReturning,
         angle: b.angle,
         color: b.color
+      })),
+      powerups: this.powerups.map(p => ({
+        id: p.id,
+        pos: { ...p.pos },
+        type: p.type
       })),
       particles: this.particles.map(p => ({
         pos: { ...p.pos },
@@ -731,6 +844,7 @@ export class GameEngine {
     this.players[0].kills = state.p1.kills;
     this.players[0].hasBoomerang = state.p1.hasBoomerang;
     this.players[0].isInvulnerable = state.p1.isInvulnerable;
+    this.players[0].isMovementReversed = state.p1.isMovementReversed;
 
     this.players[1].pos = { ...state.p2.pos };
     this.players[1].vel = { ...state.p2.vel };
@@ -741,6 +855,7 @@ export class GameEngine {
     this.players[1].kills = state.p2.kills;
     this.players[1].hasBoomerang = state.p2.hasBoomerang;
     this.players[1].isInvulnerable = state.p2.isInvulnerable;
+    this.players[1].isMovementReversed = state.p2.isMovementReversed;
 
     // Sync boomerangs
     this.boomerangs = state.boomerangs.map(bData => {
@@ -749,6 +864,11 @@ export class GameEngine {
       b.isReturning = bData.isReturning;
       b.angle = bData.angle;
       return b;
+    });
+
+    // Sync powerups
+    this.powerups = state.powerups.map(pData => {
+      return new Powerup(pData.id, pData.pos.x, pData.pos.y, pData.type as PowerupType);
     });
 
     // Sync particles (simplified)
@@ -983,11 +1103,13 @@ export class GameEngine {
     // Grid lines for style (Neon Grid)
     const time = performance.now() / 1000;
     const gridOffset = (time * 20) % 40;
+    const isAnyElectric = this.players.some(p => p.isElectricBoogalooActive);
+    const currentEnvColor = isAnyElectric ? '#FF00FF' : this.envColor;
     
-    this.ctx.strokeStyle = this.envColor + '44'; // Stronger grid
-    this.ctx.lineWidth = 1.5;
-    this.ctx.shadowBlur = 5;
-    this.ctx.shadowColor = this.envColor;
+    this.ctx.strokeStyle = currentEnvColor + (isAnyElectric ? '88' : '44');
+    this.ctx.lineWidth = isAnyElectric ? 2.5 : 1.5;
+    this.ctx.shadowBlur = isAnyElectric ? 15 : 5;
+    this.ctx.shadowColor = currentEnvColor;
     this.ctx.beginPath();
     for (let x = gridOffset; x < CANVAS_WIDTH; x += 40) {
       this.ctx.moveTo(x, 0);
@@ -1001,7 +1123,8 @@ export class GameEngine {
     this.ctx.shadowBlur = 0;
 
     // Horizontal perspective lines (animated)
-    this.ctx.strokeStyle = this.envColor + '22';
+    this.ctx.strokeStyle = currentEnvColor + (isAnyElectric ? '44' : '22');
+    this.ctx.lineWidth = isAnyElectric ? 2 : 1;
     const pOffset = (time * 40) % 80;
     for (let y = pOffset; y < CANVAS_HEIGHT; y += 80) {
       this.ctx.beginPath();
@@ -1012,6 +1135,7 @@ export class GameEngine {
 
     this.particles.forEach(p => p.draw(this.ctx));
     this.boomerangs.forEach(b => b.draw(this.ctx));
+    this.powerups.forEach(p => p.draw(this.ctx));
     this.players.forEach(p => p.draw(this.ctx));
 
     // Draw Light Bursts
@@ -1035,31 +1159,32 @@ export class GameEngine {
     });
 
     // Draw obstacles (Neon Walls with Pulse)
-    const pulse = Math.sin(time * 8) * 5 + 10;
+    const basePulse = isAnyElectric ? 30 : 10;
+    const pulse = Math.sin(time * (isAnyElectric ? 15 : 8)) * (isAnyElectric ? 15 : 5) + basePulse;
     
     // Draw Map Boundaries with Glow
     this.ctx.save();
-    this.ctx.shadowBlur = pulse;
-    this.ctx.shadowColor = this.envColor;
-    this.ctx.strokeStyle = this.envColor;
-    this.ctx.lineWidth = 4;
+    this.ctx.shadowBlur = pulse * 1.5;
+    this.ctx.shadowColor = currentEnvColor;
+    this.ctx.strokeStyle = currentEnvColor;
+    this.ctx.lineWidth = isAnyElectric ? 8 : 4;
     this.ctx.strokeRect(2, 2, CANVAS_WIDTH - 4, CANVAS_HEIGHT - 4);
     this.ctx.restore();
 
     this.obstacles.forEach(obs => {
       // Outer Glow
       this.ctx.shadowBlur = pulse;
-      this.ctx.shadowColor = this.envColor;
+      this.ctx.shadowColor = currentEnvColor;
       this.ctx.fillStyle = COLORS.WALL;
       this.ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
       
       this.ctx.shadowBlur = 0;
-      this.ctx.strokeStyle = this.envColor;
-      this.ctx.lineWidth = 2;
+      this.ctx.strokeStyle = currentEnvColor;
+      this.ctx.lineWidth = isAnyElectric ? 4 : 2;
       this.ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
       
       // Inner detail
-      this.ctx.strokeStyle = this.envColor + '44';
+      this.ctx.strokeStyle = currentEnvColor + '44';
       this.ctx.strokeRect(obs.x + 5, obs.y + 5, obs.width - 10, obs.height - 10);
     });
 
